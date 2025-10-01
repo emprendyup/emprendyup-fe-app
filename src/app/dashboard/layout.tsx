@@ -88,8 +88,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Si no es admin o store_admin no mostramos nada
-  if (!user || !['ADMIN', 'STORE_ADMIN'].includes(user.role)) {
+  const isStoreNewPage = pathname === '/dashboard/store/new';
+  if (!isStoreNewPage && (!user || !['ADMIN', 'STORE_ADMIN'].includes(user.role))) {
     return null;
   }
 

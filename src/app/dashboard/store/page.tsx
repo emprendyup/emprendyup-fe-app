@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+
 import { gql, useQuery, useMutation } from '@apollo/client';
 import Image from 'next/image';
 import {
@@ -15,10 +16,14 @@ import {
   Save,
   CreditCard,
   Info,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
 import { useSessionStore } from '@/lib/store/dashboard';
 import DetailsStore from '@/app/components/Detalles';
+import RichTextEditor from '@/app/components/blog/RichTextEditor';
+import toast from 'react-hot-toast';
 
 const GET_STORE_CONFIG = gql`
   query GetStore($storeId: String!) {
@@ -122,8 +127,71 @@ const UPDATE_STORE_CONFIG = gql`
     }
   }
 `;
+const POLICY_TYPES = [
+  { value: 'PRIVACY_POLICY', label: 'Política de Privacidad' },
+  { value: 'TERMS_CONDITIONS', label: 'Términos y Condiciones' },
+  { value: 'RETURN_POLICY', label: 'Política de Devoluciones' },
+  { value: 'SHIPPING_POLICY', label: 'Política de Envíos' },
+  { value: 'COOKIE_POLICY', label: 'Política de Cookies' },
+];
+
+const GET_POLICIES = gql`
+  query GetPolicies($storeId: String!) {
+    storePolicies(storeId: $storeId) {
+      id
+      storeId
+      type
+      title
+      content
+      version
+      isActive
+      language
+      lastUpdated
+      createdAt
+    }
+  }
+`;
+
+const CREATE_STORE_POLICY = gql`
+  mutation CreateStorePolicy($storeId: String!, $input: CreateStorePolicyInput!) {
+    createStorePolicy(storeId: $storeId, input: $input) {
+      id
+      type
+      title
+      content
+      version
+      isActive
+      language
+      lastUpdated
+      createdAt
+    }
+  }
+`;
+const DELETE_STORE_POLICY = gql`
+  mutation DeleteStorePolicy($id: ID!) {
+    deleteStorePolicy(id: $id)
+  }
+`;
+
+const UPDATE_STORE_POLICY = gql`
+  mutation UpdateStorePolicy($id: ID!, $input: UpdateStorePolicyInput!) {
+    updateStorePolicy(id: $id, input: $input) {
+      id
+      type
+      title
+      content
+      version
+      isActive
+      language
+      lastUpdated
+      createdAt
+    }
+  }
+`;
 
 export default function SingleStoreSettingsPage() {
+  const [deletePolicy] = useMutation(DELETE_STORE_POLICY);
+
   const currentStore = useSessionStore((s: any) => s.currentStore);
   const storeId = currentStore?.storeId;
   const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -140,7 +208,123 @@ export default function SingleStoreSettingsPage() {
   useEffect(() => {
     if (data?.store) setFormData(data.store);
   }, [data]);
+  // Policy tab state
+  const [showPolicyForm, setShowPolicyForm] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<any>(null);
+  const [policyForm, setPolicyForm] = useState({
+    title: '',
+    content: '',
+    type: 'PRIVACY_POLICY',
+    language: 'es',
+  });
+  const { data: policiesData, refetch: refetchPolicies } = useQuery(GET_POLICIES, {
+    variables: { storeId: userData?.storeId || '' },
+    skip: !userData?.storeId,
+  });
+  const [createPolicy] = useMutation(CREATE_STORE_POLICY);
+  const [updatePolicy] = useMutation(UPDATE_STORE_POLICY);
 
+  const handlePolicyFormChange = (e: any) => {
+    const { name, value } = e.target;
+    setPolicyForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditPolicy = (policy: any) => {
+    setEditingPolicy(policy);
+    setPolicyForm({
+      title: policy.title,
+      content: policy.content,
+      language: policy.language,
+      type: policy.type ?? 'PRIVACY_POLICY',
+    });
+    setShowPolicyForm(true);
+  };
+
+  const handleCreatePolicy = async (e: any) => {
+    e.preventDefault();
+
+    // ✅ Validar si ya existe una política del mismo tipo
+    const exists = (policiesData?.storePolicies ?? []).some((p: any) => p.type === policyForm.type);
+
+    if (exists) {
+      toast.error('Ya existe una política con este tipo.');
+      return;
+    }
+
+    try {
+      await createPolicy({
+        variables: {
+          storeId: userData?.storeId,
+          input: {
+            ...policyForm,
+          },
+        },
+      });
+
+      toast.success('Política creada correctamente ✅', {
+        position: 'top-center',
+      });
+
+      setShowPolicyForm(false);
+      setPolicyForm({
+        title: '',
+        content: '',
+        type: 'PRIVACY_POLICY',
+        language: 'es',
+      });
+      refetchPolicies();
+    } catch (err: any) {
+      toast.error('Error al crear la política ❌', {
+        position: 'top-center',
+      });
+    }
+  };
+  const handleDeletePolicy = async (id: string) => {
+    try {
+      await deletePolicy({ variables: { id } });
+      toast.success('Política eliminada correctamente ✅', { position: 'top-center' });
+      refetchPolicies();
+    } catch (err: any) {
+      toast.error('Error al eliminar la política ❌', { position: 'top-center' });
+    }
+  };
+
+  const handleUpdatePolicy = async (e: any) => {
+    e.preventDefault();
+
+    const { title, content, language } = policyForm;
+
+    try {
+      await updatePolicy({
+        variables: {
+          id: editingPolicy.id,
+          input: { title, content, language },
+        },
+      });
+
+      toast.success('Política actualizada correctamente ✅', {
+        position: 'top-center',
+      });
+
+      setShowPolicyForm(false);
+      setEditingPolicy(null);
+      setPolicyForm({
+        title: '',
+        content: '',
+        type: 'PRIVACY_POLICY',
+        language: 'es',
+      });
+      refetchPolicies();
+    } catch (err: any) {
+      toast.error('Error al actualizar la política ❌', {
+        position: 'top-center',
+      });
+    }
+  };
+  // Helper: verifica si ya existen todas las políticas para el idioma seleccionado
+  const allTypesCreated = POLICY_TYPES.every((type) =>
+    (policiesData?.storePolicies ?? []).some((p: any) => p.type === type.value)
+  );
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
@@ -198,6 +382,7 @@ export default function SingleStoreSettingsPage() {
     { id: 'payments', label: 'Pagos', icon: CreditCard },
     { id: 'shipping', label: 'Envíos', icon: Truck },
     { id: 'seo', label: 'SEO', icon: Search },
+    { id: 'policies', label: 'Políticas', icon: ShieldCheck },
   ];
 
   if (!storeId) {
@@ -230,6 +415,15 @@ export default function SingleStoreSettingsPage() {
     );
   }
 
+  function setToast({ type, message }: { type: string; message: string }) {
+    if (type === 'error') {
+      toast.error(message, { position: 'top-center' });
+    } else if (type === 'success') {
+      toast.success(message, { position: 'top-center' });
+    } else {
+      toast(message, { position: 'top-center' });
+    }
+  }
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -274,11 +468,11 @@ export default function SingleStoreSettingsPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
                       isActive
-                        ? 'bg-gray-800 text-white shadow'
+                        ? ' text-black shadow bg-white'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                    <Icon className={`h-4 w-4 ${isActive ? 'text-black ' : 'text-gray-500'}`} />
                     <span className="text-sm font-medium">{tab.label}</span>
                   </button>
                 );
@@ -1072,6 +1266,303 @@ export default function SingleStoreSettingsPage() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Policies Tab */}
+              {activeTab === 'policies' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Políticas de la Tienda
+                    </h2>
+                    <button
+                      className="px-4 py-2 bg-fourth-base text-black rounded-lg hover:bg-fourth-base/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={allTypesCreated}
+                      onClick={() => {
+                        if (allTypesCreated) {
+                          toast.error(
+                            'Solo puedes tener una política por cada tipo (máximo 5 tipos: Privacidad, Términos, Devoluciones, Envíos, Cookies). Si necesitas cambiar una política, edítala o elimina una existente para poder crear otra del mismo tipo.',
+                            {
+                              position: 'top-center',
+                            }
+                          );
+                          return;
+                        }
+                        setShowPolicyForm(true);
+                        setEditingPolicy(null);
+                        setPolicyForm({
+                          title: '',
+                          content: '',
+                          type: 'PRIVACY_POLICY',
+                          language: 'es',
+                        });
+                      }}
+                    >
+                      Crear nueva política
+                    </button>
+                  </div>
+
+                  {/* Modal de Política */}
+                  {showPolicyForm && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+                        onClick={() => {
+                          setShowPolicyForm(false);
+                          setEditingPolicy(null);
+                        }}
+                      />
+
+                      {/* Modal */}
+                      <div className="flex min-h-full items-center justify-center p-4">
+                        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl mx-auto">
+                          {/* Header */}
+                          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                              {editingPolicy ? 'Editar Política' : 'Crear Nueva Política'}
+                            </h3>
+                            <button
+                              onClick={() => {
+                                setShowPolicyForm(false);
+                                setEditingPolicy(null);
+                              }}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            >
+                              <svg
+                                className="h-6 w-6"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Body */}
+                          <form onSubmit={editingPolicy ? handleUpdatePolicy : handleCreatePolicy}>
+                            <div className="p-6 space-y-6 max-h-[calc(100vh-16rem)] overflow-y-auto">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Título
+                                  </label>
+                                  <input
+                                    type="text"
+                                    name="title"
+                                    value={policyForm.title}
+                                    onChange={handlePolicyFormChange}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="Ej: Política de Privacidad"
+                                    required
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Tipo
+                                  </label>
+                                  <select
+                                    name="type"
+                                    value={policyForm.type}
+                                    onChange={handlePolicyFormChange}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    required
+                                  >
+                                    {POLICY_TYPES.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Contenido
+                                </label>
+                                <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                                  <div className="max-h-64 overflow-y-auto">
+                                    <RichTextEditor
+                                      value={policyForm.content}
+                                      onChange={(value) =>
+                                        setPolicyForm({ ...policyForm, content: value })
+                                      }
+                                      onKeyDown={() => {}}
+                                      onSubmit={() => {}}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowPolicyForm(false);
+                                  setEditingPolicy(null);
+                                }}
+                                className="px-6 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                              >
+                                {editingPolicy ? 'Guardar Cambios' : 'Crear Política'}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    {(policiesData?.storePolicies ?? []).length === 0 && (
+                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+                        <div className="text-gray-500 dark:text-gray-400">
+                          No hay políticas registradas.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Desktop: Lista tipo tabla */}
+                    {(policiesData?.storePolicies ?? []).length > 0 && (
+                      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                  Tipo
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                  Título
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                  Versión
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                  Acciones
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {(policiesData?.storePolicies ?? []).map((policy: any) => (
+                                <tr
+                                  key={policy.id}
+                                  className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                      {POLICY_TYPES.find((pt) => pt.value === policy.type)?.label ||
+                                        policy.type}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm text-gray-900 dark:text-white">
+                                      {policy.title}
+                                    </div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                                      {policy.content.replace(/<[^>]*>/g, '').substring(0, 100)}...
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                      v{policy.version}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        className="inline-flex items-center px-3 py-1.5 bg-fourth-base text-white rounded-lg hover:bg-fourth-300 transition-colors text-sm font-medium"
+                                        onClick={() => handleEditPolicy(policy)}
+                                      >
+                                        <span>Editar</span>
+                                      </button>
+                                      <button
+                                        className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                                        onClick={() => handleDeletePolicy(policy.id)}
+                                      >
+                                        <span>
+                                          <X width={16} height={16} />
+                                        </span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile: Cards */}
+                    {(policiesData?.storePolicies ?? []).length > 0 && (
+                      <div className="md:hidden space-y-4">
+                        {(policiesData?.storePolicies ?? []).map((policy: any) => (
+                          <div
+                            key={policy.id}
+                            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5"
+                          >
+                            <div className="flex flex-col">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">
+                                    {POLICY_TYPES.find((pt) => pt.value === policy.type)?.label ||
+                                      policy.type}
+                                  </h4>
+                                  <div className="flex gap-2 flex-wrap">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      {policy.language.toUpperCase()}
+                                    </span>
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                      v{policy.version}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mb-4">
+                                <p className="font-medium text-sm text-gray-900 dark:text-white mb-2">
+                                  {policy.title}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                                  {policy.content.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                                </p>
+                              </div>
+
+                              <button
+                                className="w-full px-4 py-2 bg-fourth-base text-white rounded-lg hover:bg-fourth-300 transition-colors text-sm font-medium mb-2"
+                                onClick={() => handleEditPolicy(policy)}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                                onClick={() => handleDeletePolicy(policy.id)}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -20,6 +20,7 @@ import {
   CreditCard,
   Wrench,
   Package,
+  List,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
@@ -35,6 +36,7 @@ const navigation = [
   { name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users },
   { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
   { name: 'Productos', href: '/dashboard/products', icon: Package },
+  { name: 'Categorias', href: '/dashboard/categories', icon: List },
   { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
   { name: 'Pagos Configuracion', href: '/dashboard/config', icon: Wrench },
   { name: 'Tienda', href: '/dashboard/store', icon: Store },

@@ -142,7 +142,29 @@ const UPDATE_PRODUCT = gql`
     }
   }
 `;
-
+const GET_CATEGORIES_BY_STORE = gql`
+  query GetCategoriesByStore($storeId: ID!) {
+    categoriesByStore(storeId: $storeId) {
+      id
+      name
+      slug
+      description
+      isActive
+      order
+      createdAt
+      updatedAt
+      store {
+        id
+        name
+      }
+      parent {
+        id
+        name
+        slug
+      }
+    }
+  }
+`;
 // New GraphQL operations for variant combinations
 const CREATE_VARIANT_COMBINATION = gql`
   mutation CreateVariantCombination($input: CreateVariantCombinationInput!) {
@@ -409,6 +431,10 @@ export function ProductFormWizard({
     variables: { productId: product?.id || '' },
     skip: !product?.id,
     fetchPolicy: 'cache-and-network',
+  });
+  const { data: categoriesData, refetch } = useQuery(GET_CATEGORIES_BY_STORE, {
+    variables: { storeId: userData?.storeId },
+    skip: !userData?.storeId,
   });
 
   // REMOVED: Query for existing variant combinations (invalid field)

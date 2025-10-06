@@ -31,12 +31,13 @@ import { toast } from 'sonner';
 const navigation = [
   { name: 'Estadísticas', href: '/dashboard/insights', icon: BarChart3 },
   { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
+  { name: 'Productos', href: '/dashboard/products', icon: Package },
+  { name: 'Categorias', href: '/dashboard/categories', icon: List },
+  { name: 'Categorias por tienda', href: '/dashboard/categoriesAdmin', icon: List },
   // { name: 'Clientes', href: '/dashboard/customers', icon: Users },
   { name: 'Usuarios', href: '/dashboard/users', icon: Users },
   { name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users },
   { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
-  { name: 'Productos', href: '/dashboard/products', icon: Package },
-  { name: 'Categorias', href: '/dashboard/categories', icon: List },
   { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
   { name: 'Pagos Configuracion', href: '/dashboard/config', icon: Wrench },
   { name: 'Tienda', href: '/dashboard/store', icon: Store },
@@ -107,7 +108,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (user.role === 'ADMIN') {
     allNavigation = [...navigation].filter(
-      (item) => item.name !== 'Tienda' && item.name !== 'Usuarios por tienda'
+      (item) =>
+        item.name !== 'Tienda' && item.name !== 'Usuarios por tienda' && item.name !== 'Categorias'
     );
   } else if (user.role === 'STORE_ADMIN') {
     allNavigation = navigation.filter(
@@ -115,7 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         item.name !== 'Blog' &&
         item.name !== 'Configuración' &&
         item.name !== 'Tiendas' &&
-        item.name !== 'Usuarios'
+        item.name !== 'Usuarios' &&
+        item.name !== 'Categorias por tienda'
     );
   }
 

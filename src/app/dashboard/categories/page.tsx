@@ -591,6 +591,7 @@ const CategoryCard = ({
   isDraggedOver,
   isExpanded,
   onToggleExpand,
+  depth = 0,
 }: {
   category: Category;
   onEdit: (category: Category) => void;
@@ -606,6 +607,7 @@ const CategoryCard = ({
   isDraggedOver?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: (id: string) => void;
+  depth?: number;
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -615,12 +617,14 @@ const CategoryCard = ({
     });
   };
 
+  const canCreateSubcategory = category.isActive && depth < 2; // Máximo 3 niveles (0, 1, 2)
+
   return (
     <div
       className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all ${
         isDraggedOver ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : ''
-      }`}
-      draggable={category.isActive}
+      } ${depth > 0 ? 'ml-6' : ''}`}
+      draggable={category.isActive && !category.parent}
       onDragStart={(e) => onDragStart?.(e, category)}
       onDragOver={(e) => onDragOver?.(e, category)}
       onDragEnd={onDragEnd}
@@ -630,22 +634,43 @@ const CategoryCard = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            {category.parent && (
+
+            {/* Mostrar nivel de profundidad */}
+            {depth > 0 && (
               <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                Subcategoría
+                Nivel {depth + 1}
               </span>
             )}
+
+            {/* Botón expandir/colapsar para categorías con hijos */}
+            {category.children && category.children.length > 0 && (
+              <button
+                onClick={() => onToggleExpand?.(category.id)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-3 w-3 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-3 w-3 text-gray-500" />
+                )}
+              </button>
+            )}
+
             <h3 className="font-medium text-gray-900 dark:text-white truncate">{category.name}</h3>
           </div>
+
           {category.slug && (
             <div className="text-sm text-gray-500 dark:text-gray-400 ml-6">/{category.slug}</div>
           )}
+
           {category.parent && (
             <div className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1">
               Subcategoría de: <span className="font-medium">{category.parent.name}</span>
             </div>
           )}
         </div>
+
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
             category.isActive
@@ -720,8 +745,8 @@ const CategoryCard = ({
           </button>
         </div>
 
-        {/* Botón de crear subcategoría (solo para categorías principales activas) */}
-        {category.isActive && (category.children?.length || 0) < 2 && (
+        {/* Botón de crear subcategoría (solo para categorías activas y hasta nivel 2) */}
+        {canCreateSubcategory && (
           <button
             onClick={() => onCreateSubcategory(category)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
@@ -735,7 +760,7 @@ const CategoryCard = ({
   );
 };
 
-// Category Row Component (for desktop table)
+// Category Row Component (for desktop table) - ACTUALIZADO
 const CategoryRow = ({
   category,
   onEdit,
@@ -751,6 +776,7 @@ const CategoryRow = ({
   isDraggedOver,
   isExpanded,
   onToggleExpand,
+  depth = 0,
 }: {
   category: Category;
   onEdit: (category: Category) => void;
@@ -766,6 +792,7 @@ const CategoryRow = ({
   isDraggedOver?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: (id: string) => void;
+  depth?: number;
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -775,141 +802,171 @@ const CategoryRow = ({
     });
   };
 
+  const canCreateSubcategory = category.isActive && depth < 2; // Máximo 3 niveles (0, 1, 2)
+
   return (
-    <tr
-      className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-        isDraggedOver ? 'bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-500' : ''
-      }`}
-      draggable={category.isActive}
-      onDragStart={(e) => onDragStart?.(e, category)}
-      onDragOver={(e) => onDragOver?.(e, category)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop?.(e, category)}
-      onDragEnd={onDragEnd}
-    >
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          {(category.children?.length || 0) > 0 ? (
-            <button
-              onClick={() => onToggleExpand?.(category.id)}
-              className="p-0 mr-1"
-              aria-label={isExpanded ? 'Collapse' : 'Expand'}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
-          ) : null}
-          <GripVertical className="h-4 w-4 text-gray-400 cursor-grab" />
-
-          <div>
-            <div className="flex items-center gap-2">
-              {category.parent && (
-                <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                  Subcategoría
-                </span>
-              )}
-              <div className="font-medium text-gray-900 dark:text-white">{category.name}</div>
-            </div>
-            {category.slug && (
-              <div className="text-sm text-gray-500 dark:text-gray-400">/{category.slug}</div>
+    <>
+      <tr
+        className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+          isDraggedOver ? 'bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-500' : ''
+        }`}
+        draggable={category.isActive && !category.parent}
+        onDragStart={(e) => onDragStart?.(e, category)}
+        onDragOver={(e) => onDragOver?.(e, category)}
+        onDragLeave={onDragLeave}
+        onDrop={(e) => onDrop?.(e, category)}
+        onDragEnd={onDragEnd}
+      >
+        <td className="py-4" style={{ paddingLeft: `${depth * 40 + 24}px` }}>
+          <div className="flex items-center gap-2">
+            {/* Botón expandir/colapsar para categorías con hijos */}
+            {category.children && category.children.length > 0 && (
+              <button
+                onClick={() => onToggleExpand?.(category.id)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                )}
+              </button>
             )}
-            {category.parent && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+            <GripVertical className="h-4 w-4 text-gray-400 cursor-grab" />
+            <div>
+              <div className="flex items-center gap-2">
+                {/* Mostrar nivel de profundidad */}
+                {depth > 0 && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
+                    Nivel {depth + 1}
+                  </span>
+                )}
+                <div className="font-medium text-gray-900 dark:text-white">{category.name}</div>
               </div>
-            )}
+              {category.slug && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">/{category.slug}</div>
+              )}
+              {category.parent && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </td>
+        </td>
 
-      <td className="px-6 py-4">
-        <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
-          {category.description || '—'}
-        </div>
-      </td>
+        <td className="px-6 py-4">
+          <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+            {category.description || '—'}
+          </div>
+        </td>
 
-      <td className="px-6 py-4">
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            category.isActive
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-          }`}
-        >
-          {category.isActive ? (
-            <>
-              <Eye className="w-3 h-3 mr-1" />
-              Activo
-            </>
-          ) : (
-            <>
-              <EyeOff className="w-3 h-3 mr-1" />
-              Archivado
-            </>
-          )}
-        </span>
-      </td>
-
-      <td className="px-6 py-4">
-        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <Calendar className="w-4 h-4 mr-1" />
-          {formatDate(category.createdAt)}
-        </div>
-      </td>
-
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEdit(category)}
-            className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            aria-label={`Editar categoría ${category.name}`}
-            disabled={!category.isActive}
+        <td className="px-6 py-4">
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              category.isActive
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+            }`}
           >
-            <Edit className="h-4 w-4" />
-          </button>
+            {category.isActive ? (
+              <>
+                <Eye className="w-3 h-3 mr-1" />
+                Activo
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-3 h-3 mr-1" />
+                Archivado
+              </>
+            )}
+          </span>
+        </td>
 
-          {category.isActive ? (
-            <button
-              onClick={() => onSoftDelete(category)}
-              className="text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-              aria-label={`Archivar categoría ${category.name}`}
-            >
-              <Archive className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              onClick={() => onRestore(category)}
-              className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-              aria-label={`Restaurar categoría ${category.name}`}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-          )}
+        <td className="px-6 py-4">
+          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+            <Calendar className="w-4 h-4 mr-1" />
+            {formatDate(category.createdAt)}
+          </div>
+        </td>
 
-          {/* Botón crear subcategoría (permitir en cualquier nivel si tiene menos de 2 hijos) */}
-          {category.isActive && (category.children?.length || 0) < 2 && (
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => onCreateSubcategory(category)}
+              onClick={() => onEdit(category)}
               className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              aria-label={`Crear subcategoría de ${category.name}`}
+              aria-label={`Editar categoría ${category.name}`}
+              disabled={!category.isActive}
             >
-              <Plus className="h-4 w-4" />
+              <Edit className="h-4 w-4" />
             </button>
-          )}
 
-          <button
-            onClick={() => onHardDelete(category)}
-            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            aria-label={`Eliminar permanentemente categoría ${category.name}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
+            {category.isActive ? (
+              <button
+                onClick={() => onSoftDelete(category)}
+                className="text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                aria-label={`Archivar categoría ${category.name}`}
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => onRestore(category)}
+                className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                aria-label={`Restaurar categoría ${category.name}`}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Botón crear subcategoría (solo hasta nivel 2) */}
+            {canCreateSubcategory && (
+              <button
+                onClick={() => onCreateSubcategory(category)}
+                className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                aria-label={`Crear subcategoría de ${category.name}`}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+
+            <button
+              onClick={() => onHardDelete(category)}
+              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              aria-label={`Eliminar permanentemente categoría ${category.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {/* Renderizar hijos si está expandido y hay hijos */}
+      {isExpanded && category.children && category.children.length > 0 && (
+        <>
+          {category.children.map((child) => (
+            <CategoryRow
+              key={child.id}
+              category={child}
+              onEdit={onEdit}
+              onSoftDelete={onSoftDelete}
+              onHardDelete={onHardDelete}
+              onRestore={onRestore}
+              onCreateSubcategory={onCreateSubcategory}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onDragEnd={onDragEnd}
+              isExpanded={isExpanded}
+              onToggleExpand={onToggleExpand}
+              depth={depth + 1}
+            />
+          ))}
+        </>
+      )}
+    </>
   );
 };
 
@@ -959,9 +1016,37 @@ export default function CategoriesPage() {
     return categoriesData?.categories || categoriesData?.categoriesByStore || [];
   }, [categoriesData]);
 
+  // Construir árbol de categorías jerárquico
+  const buildCategoryTree = (categoriesList: Category[]): Category[] => {
+    const categoryMap = new Map<string, Category>();
+    const roots: Category[] = [];
+
+    // Primero, crear un mapa de todas las categorías
+    categoriesList.forEach((category) => {
+      categoryMap.set(category.id, { ...category, children: [] });
+    });
+
+    // Luego, construir la jerarquía
+    categoriesList.forEach((category) => {
+      const node = categoryMap.get(category.id)!;
+      if (category.parent?.id && categoryMap.has(category.parent.id)) {
+        const parent = categoryMap.get(category.parent.id)!;
+        if (!parent.children) parent.children = [];
+        parent.children.push(node);
+        // Ordenar hijos por order
+        parent.children.sort((a, b) => a.order - b.order);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    // Ordenar raíces por order
+    return roots.sort((a, b) => a.order - b.order);
+  };
+
   // Filtered categories
   const filteredCategories = useMemo(() => {
-    return categories.filter((category) => {
+    const filtered = categories.filter((category) => {
       const matchesSearch =
         category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (category.slug && category.slug.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -973,112 +1058,68 @@ export default function CategoriesPage() {
 
       return matchesSearch && matchesStatus;
     });
+
+    return buildCategoryTree(filtered);
   }, [categories, searchTerm, statusFilter]);
 
-  // Build hierarchy (tree) from flat filteredCategories
-  const categoryTree = useMemo(() => {
-    type Node = Category & { children: (Category & { children?: any[] })[] };
-    const map = new Map<string, Node>();
-    const roots: Node[] = [];
+  // Función recursiva para renderizar tarjetas en móvil
+  const renderCategoryCards = (categoryList: Category[], depth = 0) => {
+    return categoryList.map((category) => {
+      const isExpanded = expandedIds.has(category.id);
 
-    // initialize map
-    filteredCategories.forEach((cat) => {
-      map.set(cat.id, { ...(cat as Category), children: [] });
+      return (
+        <div key={category.id} className="space-y-3">
+          <CategoryCard
+            category={category}
+            onEdit={handleEditCategory}
+            onSoftDelete={handleSoftDelete}
+            onHardDelete={handleHardDelete}
+            onRestore={handleRestoreCategory}
+            onCreateSubcategory={handleCreateSubcategory}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
+            isDraggedOver={draggedOverItem?.id === category.id}
+            isExpanded={isExpanded}
+            onToggleExpand={toggleExpand}
+            depth={depth}
+          />
+
+          {/* Renderizar hijos si está expandido */}
+          {isExpanded && category.children && category.children.length > 0 && (
+            <div className="space-y-3">{renderCategoryCards(category.children, depth + 1)}</div>
+          )}
+        </div>
+      );
     });
-
-    // populate children
-    map.forEach((cat) => {
-      const parentId = cat.parent?.id;
-      if (parentId && map.has(parentId)) {
-        map.get(parentId)!.children.push(cat);
-      } else {
-        roots.push(cat);
-      }
-    });
-
-    // sort children by order recursively
-    const sortRec = (nodes: Node[]) => {
-      nodes.sort((a, b) => a.order - b.order);
-      nodes.forEach((n) => {
-        if (n.children && n.children.length) sortRec(n.children as Node[]);
-      });
-    };
-    sortRec(roots);
-
-    return roots;
-  }, [filteredCategories]);
-
-  // Recursive render functions
-  const renderCategoryRow = (cat: Category & { children?: any[] }, depth = 0) => {
-    const isExpanded = expandedIds.has(cat.id);
-    return (
-      <>
-        <CategoryRow
-          key={cat.id}
-          category={cat}
-          onEdit={handleEditCategory}
-          onSoftDelete={handleSoftDelete}
-          onHardDelete={handleHardDelete}
-          onRestore={handleRestoreCategory}
-          onCreateSubcategory={(c) => handleCreateSubcategory(c)}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          isDraggedOver={draggedOverItem?.id === cat.id}
-          isExpanded={isExpanded}
-          onToggleExpand={() => toggleExpand(cat.id)}
-        />
-        {isExpanded && cat.children && cat.children.length > 0 && (
-          <tr>
-            <td colSpan={5} className="pl-8">
-              <table className="w-full">
-                <tbody>
-                  {cat.children.map((child: any) => (
-                    <tr key={child.id}>
-                      <td className="pl-6">{renderCategoryRow(child, depth + 1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </td>
-          </tr>
-        )}
-      </>
-    );
   };
 
-  const renderCategoryCard = (cat: Category & { children?: any[] }, depth = 0) => {
-    const isExpanded = expandedIds.has(cat.id);
-    return (
-      <div key={cat.id} className="">
-        <CategoryCard
-          category={cat}
-          onEdit={handleEditCategory}
-          onSoftDelete={handleSoftDelete}
-          onHardDelete={handleHardDelete}
-          onRestore={handleRestoreCategory}
-          onCreateSubcategory={(c) => handleCreateSubcategory(c)}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          isDraggedOver={draggedOverItem?.id === cat.id}
-          isExpanded={isExpanded}
-          onToggleExpand={() => toggleExpand(cat.id)}
-        />
-        {isExpanded && cat.children && cat.children.length > 0 && (
-          <div className="pl-6 mt-2">
-            {cat.children.map((child: any) => renderCategoryCard(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
+  // Función recursiva para renderizar filas en desktop
+  const renderCategoryRows = (categoryList: Category[], depth = 0) => {
+    return categoryList.map((category) => (
+      <CategoryRow
+        key={category.id}
+        category={category}
+        onEdit={handleEditCategory}
+        onSoftDelete={handleSoftDelete}
+        onHardDelete={handleHardDelete}
+        onRestore={handleRestoreCategory}
+        onCreateSubcategory={handleCreateSubcategory}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onDragEnd={handleDragEnd}
+        isExpanded={expandedIds.has(category.id)}
+        onToggleExpand={toggleExpand}
+        depth={depth}
+      />
+    ));
   };
 
-  // Handlers
+  // Handlers (se mantienen igual)
   const handleCreateCategory = () => {
     setEditingCategory(null);
     setPreselectedParent(null);
@@ -1086,6 +1127,25 @@ export default function CategoriesPage() {
   };
 
   const handleCreateSubcategory = (parentCategory: Category) => {
+    // Verificar que no se exceda el límite de 3 niveles
+    let current = parentCategory;
+    let depth = 1; // Ya estamos en al menos nivel 1
+
+    while (current.parent) {
+      depth++;
+      if (depth >= 3) {
+        toast.error('No se pueden crear más de 3 niveles de subcategorías', {
+          style: {
+            background: '#fef3c7',
+            color: '#d97706',
+            border: '1px solid #fde68a',
+          },
+        });
+        return;
+      }
+      current = current.parent as Category;
+    }
+
     setEditingCategory(null);
     setPreselectedParent(parentCategory);
     setIsModalOpen(true);
@@ -1171,6 +1231,18 @@ export default function CategoriesPage() {
 
   const handleDrop = async (e: React.DragEvent, dropTarget: Category) => {
     e.preventDefault();
+    if (draggedItem?.parent || dropTarget?.parent) {
+      toast.error('Solo se pueden reordenar las categorías de primer nivel', {
+        style: {
+          background: '#fef3c7',
+          color: '#d97706',
+          border: '1px solid #fde68a',
+        },
+      });
+      setDraggedItem(null);
+      setDraggedOverItem(null);
+      return;
+    }
 
     if (!draggedItem || draggedItem.id === dropTarget.id) {
       setDraggedItem(null);
@@ -1384,7 +1456,7 @@ export default function CategoriesPage() {
               Categorías
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Gestiona las categorías de productos
+              Gestiona las categorías de productos (máximo 3 niveles)
             </p>
           </div>
           <button
@@ -1454,7 +1526,7 @@ export default function CategoriesPage() {
             <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Categorías ({filteredCategories.length})
+                  Categorías ({categories.length})
                 </h2>
               </div>
 
@@ -1480,7 +1552,7 @@ export default function CategoriesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {categoryTree.map((category) => renderCategoryRow(category))}
+                    {renderCategoryRows(filteredCategories)}
                   </tbody>
                 </table>
               </div>
@@ -1490,10 +1562,10 @@ export default function CategoriesPage() {
             <div className="md:hidden space-y-4">
               <div className="px-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Categorías ({filteredCategories.length})
+                  Categorías ({categories.length})
                 </h2>
               </div>
-              {categoryTree.map((category) => renderCategoryCard(category))}
+              {renderCategoryCards(filteredCategories)}
             </div>
           </>
         )}

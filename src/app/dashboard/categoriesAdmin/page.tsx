@@ -16,13 +16,14 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  MoreVertical,
 } from 'lucide-react';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, JSX } from 'react';
 import toast from 'react-hot-toast';
 
-const GET_CATEGORIES_BY_STORE = gql`
-  query GetCategoriesByStore($storeId: ID!) {
-    categoriesByStore(storeId: $storeId) {
+const GET_ALL_CATEGORIES = gql`
+  query GetAllCategories {
+    categories {
       id
       name
       slug
@@ -70,9 +71,9 @@ const GET_CATEGORIES_BY_STORE = gql`
   }
 `;
 
-const CREATE_STORE_CATEGORY = gql`
-  mutation CreateStoreCategory($storeId: String!, $input: CreateStoreCategoryInput!) {
-    createStoreCategory(storeId: $storeId, input: $input) {
+const CREATE_CATEGORY = gql`
+  mutation CreateCategory($input: CreateCategoryInput!) {
+    createCategory(input: $input) {
       id
       name
       slug
@@ -83,31 +84,6 @@ const CREATE_STORE_CATEGORY = gql`
       order
       createdAt
       updatedAt
-      store {
-        id
-        name
-      }
-      parent {
-        id
-        name
-        slug
-      }
-    }
-  }
-`;
-
-const CREATE_SUBCATEGORY = gql`
-  mutation CreateSubcategory($storeId: String!, $input: CreateStoreCategoryInput!) {
-    createStoreCategory(storeId: $storeId, input: $input) {
-      id
-      name
-      slug
-      description
-      parentId
-      storeId
-      isActive
-      order
-      createdAt
       store {
         id
         name
@@ -162,8 +138,8 @@ const DELETE_CATEGORY = gql`
 `;
 
 const REORDER_CATEGORIES = gql`
-  mutation ReorderCategories($storeId: ID!, $categoryOrders: [CategoryOrderInput!]!) {
-    reorderCategories(storeId: $storeId, categoryOrders: $categoryOrders) {
+  mutation ReorderCategories($categoryOrders: [CategoryOrderInput!]!) {
+    reorderCategories(categoryOrders: $categoryOrders) {
       id
       order
     }
@@ -201,7 +177,6 @@ const CategoryFormModal = ({
   isOpen,
   onClose,
   category,
-  storeId,
   onSuccess,
   availableCategories = [],
   preselectedParent = null,
@@ -209,7 +184,6 @@ const CategoryFormModal = ({
   isOpen: boolean;
   onClose: () => void;
   category?: Category;
-  storeId?: string;
   onSuccess: () => void;
   availableCategories?: Category[];
   preselectedParent?: Category | null;
@@ -219,6 +193,7 @@ const CategoryFormModal = ({
     description: category?.description || '',
     slug: category?.slug || '',
     parentId: category?.parent?.id || '',
+    storeId: category?.store?.id || '',
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -241,8 +216,7 @@ const CategoryFormModal = ({
       .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
   };
 
-  const [createStoreCategory] = useMutation(CREATE_STORE_CATEGORY);
-  const [createSubcategory] = useMutation(CREATE_SUBCATEGORY);
+  const [createCategory] = useMutation(CREATE_CATEGORY);
   const [updateCategory] = useMutation(UPDATE_CATEGORY);
 
   // Update form data when category or preselectedParent prop changes
@@ -253,6 +227,7 @@ const CategoryFormModal = ({
         description: category.description || '',
         slug: category.slug || generateSlug(category.name || ''),
         parentId: category.parent?.id || '',
+        storeId: category.store?.id || '',
       });
     } else {
       setFormData({
@@ -260,6 +235,7 @@ const CategoryFormModal = ({
         description: '',
         slug: '',
         parentId: preselectedParent?.id || '',
+        storeId: preselectedParent?.store?.id || '',
       });
     }
     setErrors({});
@@ -272,6 +248,7 @@ const CategoryFormModal = ({
         description: '',
         slug: '',
         parentId: '',
+        storeId: '',
       });
       setErrors({});
       setIsLoading(false);
@@ -289,6 +266,10 @@ const CategoryFormModal = ({
       newErrors.name = 'El nombre no puede exceder 80 caracteres';
     }
 
+    if (!formData.storeId && !category && !preselectedParent) {
+      newErrors.storeId = 'La tienda es requerida';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -300,15 +281,28 @@ const CategoryFormModal = ({
 
     setIsLoading(true);
     try {
-      // Sanitize input: remove parentId when empty (''), and coerce present parentId to string
-      const inputPayload: any = { ...formData };
-      if (inputPayload.parentId) {
-        // ensure it's a string (GraphQL/DB expects string IDs)
-        inputPayload.parentId = String(inputPayload.parentId);
-      } else {
-        // remove falsy parentId (empty string, null, undefined) so backend doesn't receive invalid FK
-        delete inputPayload.parentId;
+      // Determinar storeId - prioridad: formData > preselectedParent > category
+      const storeId = formData.storeId || preselectedParent?.store?.id || category?.store?.id;
+
+      if (!storeId) {
+        toast.error('No se pudo determinar la tienda para la categoría');
+        return;
       }
+
+      // Sanitize input
+      const inputPayload: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        slug: formData.slug.trim(),
+        storeId: storeId,
+      };
+
+      // Solo agregar parentId si existe y no es una cadena vacía
+      if (formData.parentId && formData.parentId.trim()) {
+        inputPayload.parentId = formData.parentId;
+      }
+
+      console.log('Enviando datos:', inputPayload); // Para debug
 
       if (category) {
         // Update existing category
@@ -320,32 +314,24 @@ const CategoryFormModal = ({
         });
         toast.success('Categoría actualizada exitosamente');
       } else {
-        if (storeId) {
-          if (inputPayload.parentId) {
-            // Variables sent to GraphQL
-            await createSubcategory({
-              variables: {
-                storeId,
-                input: inputPayload,
-              },
-            });
-            toast.success('Subcategoría creada exitosamente');
-          } else {
-            // Variables sent to GraphQL
-            await createStoreCategory({
-              variables: {
-                storeId,
-                input: inputPayload,
-              },
-            });
-            toast.success('Categoría creada exitosamente');
-          }
+        // Create new category
+        await createCategory({
+          variables: {
+            input: inputPayload,
+          },
+        });
+
+        if (formData.parentId) {
+          toast.success('Subcategoría creada exitosamente');
+        } else {
+          toast.success('Categoría creada exitosamente');
         }
       }
 
       onSuccess();
       onClose();
     } catch (error: any) {
+      console.error('Error al guardar categoría:', error);
       const errorMessage =
         error?.graphQLErrors?.[0]?.message || error?.message || 'Error al guardar la categoría';
 
@@ -397,6 +383,17 @@ const CategoryFormModal = ({
     }
   };
 
+  // Get unique stores from available categories
+  const stores = useMemo(() => {
+    const storeMap = new Map();
+    availableCategories.forEach((cat) => {
+      if (cat.store) {
+        storeMap.set(cat.store.id, cat.store);
+      }
+    });
+    return Array.from(storeMap.values());
+  }, [availableCategories]);
+
   if (!isOpen) return null;
 
   return (
@@ -423,7 +420,8 @@ const CategoryFormModal = ({
                     Creando subcategoría
                   </p>
                   <p className="text-xs text-blue-700 dark:text-blue-400">
-                    Esta será una subcategoría de &quot;{preselectedParent.name}&quot;
+                    Esta será una subcategoría de &quot;{preselectedParent.name}&quot; en la tienda
+                    &quot;{preselectedParent.store?.name}&quot;
                   </p>
                 </div>
               </div>
@@ -431,6 +429,48 @@ const CategoryFormModal = ({
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Mostrar tienda para subcategorías (solo lectura) */}
+            {!category && preselectedParent && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tienda
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                  {preselectedParent.store?.name || 'No especificada'}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  La subcategoría hereda la tienda de la categoría padre
+                </p>
+              </div>
+            )}
+
+            {/* Seleccionar tienda solo para categorías principales nuevas */}
+            {!category && !preselectedParent && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tienda *
+                </label>
+                <select
+                  value={formData.storeId}
+                  onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.storeId
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
+                  } text-gray-900 dark:text-white`}
+                  disabled={isLoading}
+                >
+                  <option value="">Seleccionar tienda</option>
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.storeId && <p className="text-red-500 text-sm mt-1">{errors.storeId}</p>}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Nombre *
@@ -512,7 +552,7 @@ const CategoryFormModal = ({
   );
 };
 
-// Delete Confirmation Modal
+// Delete Confirmation Modal (se mantiene igual)
 const DeleteConfirmationModal = ({
   isOpen,
   onClose,
@@ -575,7 +615,6 @@ const DeleteConfirmationModal = ({
   );
 };
 
-// Category Card Component (for mobile)
 const CategoryCard = ({
   category,
   onEdit,
@@ -583,14 +622,10 @@ const CategoryCard = ({
   onHardDelete,
   onRestore,
   onCreateSubcategory,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragEnd,
-  isDraggedOver,
   isExpanded,
   onToggleExpand,
+  depth = 0,
+  isMobile = false,
 }: {
   category: Category;
   onEdit: (category: Category) => void;
@@ -598,144 +633,257 @@ const CategoryCard = ({
   onHardDelete: (category: Category) => void;
   onRestore: (category: Category) => void;
   onCreateSubcategory: (category: Category) => void;
-  onDragStart?: (e: React.DragEvent, category: Category) => void;
-  onDragOver?: (e: React.DragEvent, category: Category) => void;
-  onDragLeave?: () => void;
-  onDrop?: (e: React.DragEvent, category: Category) => void;
-  onDragEnd?: () => void;
-  isDraggedOver?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: (id: string) => void;
+  depth?: number;
+  isMobile?: boolean;
 }) => {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
     });
-  };
 
-  return (
-    <div
-      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all ${
-        isDraggedOver ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : ''
-      }`}
-      draggable={category.isActive}
-      onDragStart={(e) => onDragStart?.(e, category)}
-      onDragOver={(e) => onDragOver?.(e, category)}
-      onDragEnd={onDragEnd}
-    >
-      {/* Header with name and status */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            {category.parent && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                Subcategoría
-              </span>
+  const canCreateSubcategory = category.isActive && depth < 2;
+
+  // En móvil, si es subcategoría (depth > 0), mostrar como lista simple
+  if (isMobile && depth > 0) {
+    return (
+      <div
+        className={`border-b border-gray-200 dark:border-gray-700 ${depth === 1 ? 'pl-6' : 'pl-10'}`}
+      >
+        <div className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+          {/* Información de la subcategoría */}
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Botón expandir/colapsar si tiene hijos */}
+            {category.children && category.children.length > 0 && (
+              <button
+                onClick={() => onToggleExpand?.(category.id)}
+                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
+                aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-500" />
+                )}
+              </button>
             )}
-            <h3 className="font-medium text-gray-900 dark:text-white truncate">{category.name}</h3>
-          </div>
-          {category.slug && (
-            <div className="text-sm text-gray-500 dark:text-gray-400 ml-6">/{category.slug}</div>
-          )}
-          {category.parent && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1">
-              Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+
+            {/* Nombre y estado */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {category.name}
+              </h4>
+
+              <span
+                className={`inline-flex items-center p-1 rounded-full flex-shrink-0 ${
+                  category.isActive
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {category.isActive ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+              </span>
             </div>
-          )}
-        </div>
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
-            category.isActive
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-          }`}
-        >
-          {category.isActive ? (
-            <>
-              <Eye className="w-3 h-3 mr-1" />
-              Activo
-            </>
-          ) : (
-            <>
-              <EyeOff className="w-3 h-3 mr-1" />
-              Archivado
-            </>
-          )}
-        </span>
-      </div>
+          </div>
 
-      {/* Description */}
-      {category.description && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-          {category.description}
-        </p>
-      )}
-
-      {/* Date */}
-      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
-        <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
-        <span>Creado: {formatDate(category.createdAt)}</span>
-      </div>
-
-      {/* Actions */}
-      <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-        {/* Primera fila de acciones */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEdit(category)}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-            disabled={!category.isActive}
-          >
-            <Edit className="h-4 w-4" />
-            Editar
-          </button>
-
-          {category.isActive ? (
+          {/* Acciones compactas */}
+          <div className="flex items-center gap-1 flex-shrink-0 ml-3">
             <button
-              onClick={() => onSoftDelete(category)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+              onClick={() => onEdit(category)}
+              disabled={!category.isActive}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-30"
+              aria-label="Editar"
             >
-              <Archive className="h-4 w-4" />
-              Archivar
+              <Edit className="h-4 w-4" />
             </button>
-          ) : (
-            <button
-              onClick={() => onRestore(category)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Restaurar
-            </button>
-          )}
 
-          <button
-            onClick={() => onHardDelete(category)}
-            className="px-3 py-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-            aria-label={`Eliminar permanentemente categoría ${category.name}`}
+            {category.isActive ? (
+              <button
+                onClick={() => onSoftDelete(category)}
+                className="p-2 text-orange-500 hover:text-orange-700 hover:bg-orange-50 rounded transition-colors"
+                aria-label="Archivar"
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => onRestore(category)}
+                className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
+                aria-label="Restaurar"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            )}
+
+            <button
+              onClick={() => onHardDelete(category)}
+              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+              aria-label="Eliminar permanentemente"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+
+            {canCreateSubcategory && (
+              <button
+                onClick={() => onCreateSubcategory(category)}
+                className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                aria-label="Crear subcategoría"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista normal de card (para categorías principales o en desktop)
+  return (
+    <div className={`space-y-3 ${depth > 0 ? 'pl-4' : ''}`}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+        {/* Header con nombre y estado */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
+
+              {depth > 0 && (
+                <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded flex-shrink-0">
+                  Nivel {depth + 1}
+                </span>
+              )}
+
+              {category.children && category.children.length > 0 && (
+                <button
+                  onClick={() => onToggleExpand?.(category.id)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+                  aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3 w-3 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-gray-500" />
+                  )}
+                </button>
+              )}
+
+              <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                {category.name}
+              </h3>
+            </div>
+
+            {category.slug && (
+              <div className="text-sm text-gray-500 dark:text-gray-400 ml-6 truncate">
+                /{category.slug}
+              </div>
+            )}
+
+            {category.parent && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1 truncate">
+                Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+              </div>
+            )}
+
+            {category.store && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1 truncate">
+                Tienda: <span className="font-medium">{category.store.name}</span>
+              </div>
+            )}
+          </div>
+
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
+              category.isActive
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+            }`}
           >
-            <Trash2 className="h-4 w-4" />
-          </button>
+            {category.isActive ? (
+              <>
+                <Eye className="w-3 h-3 mr-1" />
+                Activo
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-3 h-3 mr-1" />
+                Archivado
+              </>
+            )}
+          </span>
         </div>
 
-        {/* Botón de crear subcategoría (solo para categorías principales activas) */}
-        {category.isActive && (category.children?.length || 0) < 2 && (
-          <button
-            onClick={() => onCreateSubcategory(category)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Crear Subcategoría
-          </button>
+        {/* Descripción */}
+        {category.description && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+            {category.description}
+          </p>
         )}
+
+        {/* Fecha */}
+        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+          <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span>Creado: {formatDate(category.createdAt)}</span>
+        </div>
+
+        {/* Acciones */}
+        <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onEdit(category)}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              disabled={!category.isActive}
+            >
+              <Edit className="h-4 w-4" />
+              Editar
+            </button>
+
+            {category.isActive ? (
+              <button
+                onClick={() => onSoftDelete(category)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+              >
+                <Archive className="h-4 w-4" />
+                Archivar
+              </button>
+            ) : (
+              <button
+                onClick={() => onRestore(category)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restaurar
+              </button>
+            )}
+
+            <button
+              onClick={() => onHardDelete(category)}
+              className="px-3 py-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              aria-label={`Eliminar permanentemente categoría ${category.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+
+          {canCreateSubcategory && (
+            <button
+              onClick={() => onCreateSubcategory(category)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Crear Subcategoría
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-// Category Row Component (for desktop table)
+// Category Row Component (for desktop table) - Versión simplificada
 const CategoryRow = ({
   category,
   onEdit,
@@ -743,14 +891,9 @@ const CategoryRow = ({
   onHardDelete,
   onRestore,
   onCreateSubcategory,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragEnd,
-  isDraggedOver,
   isExpanded,
   onToggleExpand,
+  depth = 0,
 }: {
   category: Category;
   onEdit: (category: Category) => void;
@@ -758,14 +901,9 @@ const CategoryRow = ({
   onHardDelete: (category: Category) => void;
   onRestore: (category: Category) => void;
   onCreateSubcategory: (category: Category) => void;
-  onDragStart?: (e: React.DragEvent, category: Category) => void;
-  onDragOver?: (e: React.DragEvent, category: Category) => void;
-  onDragLeave?: () => void;
-  onDrop?: (e: React.DragEvent, category: Category) => void;
-  onDragEnd?: () => void;
-  isDraggedOver?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: (id: string) => void;
+  depth?: number;
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -775,147 +913,154 @@ const CategoryRow = ({
     });
   };
 
+  const canCreateSubcategory = category.isActive && depth < 2;
+
   return (
-    <tr
-      className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-        isDraggedOver ? 'bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-500' : ''
-      }`}
-      draggable={category.isActive}
-      onDragStart={(e) => onDragStart?.(e, category)}
-      onDragOver={(e) => onDragOver?.(e, category)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop?.(e, category)}
-      onDragEnd={onDragEnd}
-    >
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          {(category.children?.length || 0) > 0 ? (
-            <button
-              onClick={() => onToggleExpand?.(category.id)}
-              className="p-0 mr-1"
-              aria-label={isExpanded ? 'Collapse' : 'Expand'}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
-          ) : null}
-          <GripVertical className="h-4 w-4 text-gray-400 cursor-grab" />
-
-          <div>
-            <div className="flex items-center gap-2">
-              {category.parent && (
-                <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                  Subcategoría
-                </span>
-              )}
-              <div className="font-medium text-gray-900 dark:text-white">{category.name}</div>
-            </div>
-            {category.slug && (
-              <div className="text-sm text-gray-500 dark:text-gray-400">/{category.slug}</div>
+    <>
+      <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+        <td className="py-4" style={{ paddingLeft: `${depth * 40 + 24}px` }}>
+          <div className="flex items-center gap-2">
+            {/* Botón expandir/colapsar para categorías con hijos */}
+            {category.children && category.children.length > 0 ? (
+              <button
+                onClick={() => onToggleExpand?.(category.id)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                )}
+              </button>
+            ) : (
+              <div className="w-6"></div>
             )}
-            {category.parent && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+
+            <GripVertical className="h-4 w-4 text-gray-400 cursor-grab" />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {depth > 0 && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded flex-shrink-0">
+                    Nivel {depth + 1}
+                  </span>
+                )}
+                <div className="font-medium text-gray-900 dark:text-white truncate">
+                  {category.name}
+                </div>
               </div>
-            )}
+              {category.slug && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  /{category.slug}
+                </div>
+              )}
+              {category.parent && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                  Subcategoría de: <span className="font-medium">{category.parent.name}</span>
+                </div>
+              )}
+              {category.store && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                  Tienda: <span className="font-medium">{category.store.name}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </td>
+        </td>
 
-      <td className="px-6 py-4">
-        <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
-          {category.description || '—'}
-        </div>
-      </td>
+        <td className="px-6 py-4">
+          <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+            {category.description || '—'}
+          </div>
+        </td>
 
-      <td className="px-6 py-4">
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            category.isActive
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-          }`}
-        >
-          {category.isActive ? (
-            <>
-              <Eye className="w-3 h-3 mr-1" />
-              Activo
-            </>
-          ) : (
-            <>
-              <EyeOff className="w-3 h-3 mr-1" />
-              Archivado
-            </>
-          )}
-        </span>
-      </td>
-
-      <td className="px-6 py-4">
-        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <Calendar className="w-4 h-4 mr-1" />
-          {formatDate(category.createdAt)}
-        </div>
-      </td>
-
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEdit(category)}
-            className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            aria-label={`Editar categoría ${category.name}`}
-            disabled={!category.isActive}
+        <td className="px-6 py-4">
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              category.isActive
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+            }`}
           >
-            <Edit className="h-4 w-4" />
-          </button>
+            {category.isActive ? (
+              <>
+                <Eye className="w-3 h-3 mr-1" />
+                Activo
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-3 h-3 mr-1" />
+                Archivado
+              </>
+            )}
+          </span>
+        </td>
 
-          {category.isActive ? (
-            <button
-              onClick={() => onSoftDelete(category)}
-              className="text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-              aria-label={`Archivar categoría ${category.name}`}
-            >
-              <Archive className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              onClick={() => onRestore(category)}
-              className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-              aria-label={`Restaurar categoría ${category.name}`}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-          )}
+        <td className="px-6 py-4">
+          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+            <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
+            {formatDate(category.createdAt)}
+          </div>
+        </td>
 
-          {/* Botón crear subcategoría (permitir en cualquier nivel si tiene menos de 2 hijos) */}
-          {category.isActive && (category.children?.length || 0) < 2 && (
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => onCreateSubcategory(category)}
-              className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              aria-label={`Crear subcategoría de ${category.name}`}
+              onClick={() => onEdit(category)}
+              className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+              aria-label={`Editar categoría ${category.name}`}
+              disabled={!category.isActive}
             >
-              <Plus className="h-4 w-4" />
+              <Edit className="h-4 w-4" />
             </button>
-          )}
 
-          <button
-            onClick={() => onHardDelete(category)}
-            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            aria-label={`Eliminar permanentemente categoría ${category.name}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
+            {category.isActive ? (
+              <button
+                onClick={() => onSoftDelete(category)}
+                className="text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                aria-label={`Archivar categoría ${category.name}`}
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => onRestore(category)}
+                className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                aria-label={`Restaurar categoría ${category.name}`}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            )}
+
+            {canCreateSubcategory && (
+              <button
+                onClick={() => onCreateSubcategory(category)}
+                className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                aria-label={`Crear subcategoría de ${category.name}`}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+
+            <button
+              onClick={() => onHardDelete(category)}
+              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              aria-label={`Eliminar permanentemente categoría ${category.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    </>
   );
 };
 
 export default function CategoriesPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'deleted'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [storeFilter, setStoreFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [preselectedParent, setPreselectedParent] = useState<Category | null>(null);
@@ -924,10 +1069,7 @@ export default function CategoriesPage() {
     category: Category | null;
     isHardDelete: boolean;
   }>({ isOpen: false, category: null, isHardDelete: false });
-  const userData = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const [draggedItem, setDraggedItem] = useState<Category | null>(null);
-  const [draggedOverItem, setDraggedOverItem] = useState<Category | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
@@ -944,36 +1086,47 @@ export default function CategoriesPage() {
     loading,
     error,
     refetch,
-  } = useQuery(GET_CATEGORIES_BY_STORE, {
-    variables: { storeId: userData?.storeId },
-    skip: !userData?.storeId,
+  } = useQuery(GET_ALL_CATEGORIES, {
     errorPolicy: 'all',
   });
 
   const [softDeleteCategory] = useMutation(SOFT_DELETE_CATEGORY);
   const [deleteCategory] = useMutation(DELETE_CATEGORY);
   const [updateCategory] = useMutation(UPDATE_CATEGORY);
-  const [reorderCategories] = useMutation(REORDER_CATEGORIES);
 
   const categories: Category[] = useMemo(() => {
-    return categoriesData?.categories || categoriesData?.categoriesByStore || [];
+    return categoriesData?.categories || [];
   }, [categoriesData]);
+
+  // Get unique stores for filter
+  const stores = useMemo(() => {
+    const storeMap = new Map();
+    categories.forEach((cat) => {
+      if (cat.store) {
+        storeMap.set(cat.store.id, cat.store);
+      }
+    });
+    return Array.from(storeMap.values());
+  }, [categories]);
 
   // Filtered categories
   const filteredCategories = useMemo(() => {
     return categories.filter((category) => {
       const matchesSearch =
         category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (category.slug && category.slug.toLowerCase().includes(searchTerm.toLowerCase()));
+        (category.slug && category.slug.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        category.store?.name.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'active' && category.isActive) ||
         (statusFilter === 'deleted' && !category.isActive);
 
-      return matchesSearch && matchesStatus;
+      const matchesStore = storeFilter === 'all' || category.store?.id === storeFilter;
+
+      return matchesSearch && matchesStatus && matchesStore;
     });
-  }, [categories, searchTerm, statusFilter]);
+  }, [categories, searchTerm, statusFilter, storeFilter]);
 
   // Build hierarchy (tree) from flat filteredCategories
   const categoryTree = useMemo(() => {
@@ -1008,74 +1161,59 @@ export default function CategoriesPage() {
     return roots;
   }, [filteredCategories]);
 
-  // Recursive render functions
-  const renderCategoryRow = (cat: Category & { children?: any[] }, depth = 0) => {
-    const isExpanded = expandedIds.has(cat.id);
-    return (
-      <>
-        <CategoryRow
-          key={cat.id}
-          category={cat}
-          onEdit={handleEditCategory}
-          onSoftDelete={handleSoftDelete}
-          onHardDelete={handleHardDelete}
-          onRestore={handleRestoreCategory}
-          onCreateSubcategory={(c) => handleCreateSubcategory(c)}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          isDraggedOver={draggedOverItem?.id === cat.id}
-          isExpanded={isExpanded}
-          onToggleExpand={() => toggleExpand(cat.id)}
-        />
-        {isExpanded && cat.children && cat.children.length > 0 && (
-          <tr>
-            <td colSpan={5} className="pl-8">
-              <table className="w-full">
-                <tbody>
-                  {cat.children.map((child: any) => (
-                    <tr key={child.id}>
-                      <td className="pl-6">{renderCategoryRow(child, depth + 1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </td>
-          </tr>
-        )}
-      </>
-    );
+  // Función recursiva para renderizar tarjetas en móvil
+  const renderCategoryCards = (categoryList: Category[], depth = 0) => {
+    return categoryList.map((category) => {
+      const isExpanded = expandedIds.has(category.id);
+
+      return (
+        <div key={category.id} className="space-y-3">
+          <CategoryCard
+            category={category}
+            onEdit={handleEditCategory}
+            onSoftDelete={handleSoftDelete}
+            onHardDelete={handleHardDelete}
+            onRestore={handleRestoreCategory}
+            onCreateSubcategory={handleCreateSubcategory}
+            isExpanded={isExpanded}
+            onToggleExpand={toggleExpand}
+            depth={depth}
+          />
+
+          {/* Renderizar hijos si está expandido */}
+          {isExpanded && category.children && category.children.length > 0 && (
+            <div className="space-y-3 border-l-2 border-gray-200 dark:border-gray-700 ml-4 pl-4">
+              {renderCategoryCards(category.children, depth + 1)}
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
-  const renderCategoryCard = (cat: Category & { children?: any[] }, depth = 0) => {
-    const isExpanded = expandedIds.has(cat.id);
-    return (
-      <div key={cat.id} className="">
-        <CategoryCard
-          category={cat}
+  // Función recursiva para renderizar filas en desktop
+  const renderCategoryRows = (categoryList: Category[], depth = 0): JSX.Element[] => {
+    return categoryList.flatMap((category: any) => {
+      const isExpanded = expandedIds.has(category.id);
+
+      return [
+        <CategoryRow
+          key={category.id}
+          category={category}
           onEdit={handleEditCategory}
           onSoftDelete={handleSoftDelete}
           onHardDelete={handleHardDelete}
           onRestore={handleRestoreCategory}
-          onCreateSubcategory={(c) => handleCreateSubcategory(c)}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          isDraggedOver={draggedOverItem?.id === cat.id}
+          onCreateSubcategory={handleCreateSubcategory}
           isExpanded={isExpanded}
-          onToggleExpand={() => toggleExpand(cat.id)}
-        />
-        {isExpanded && cat.children && cat.children.length > 0 && (
-          <div className="pl-6 mt-2">
-            {cat.children.map((child: any) => renderCategoryCard(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
+          onToggleExpand={toggleExpand}
+          depth={depth}
+        />,
+        ...(isExpanded && category.children && category.children.length > 0
+          ? renderCategoryRows(category.children, depth + 1)
+          : []),
+      ];
+    });
   };
 
   // Handlers
@@ -1086,6 +1224,25 @@ export default function CategoriesPage() {
   };
 
   const handleCreateSubcategory = (parentCategory: Category) => {
+    // Verificar que no se exceda el límite de 3 niveles
+    let current = parentCategory;
+    let depth = 1;
+
+    while (current.parent) {
+      depth++;
+      if (depth >= 3) {
+        toast.error('No se pueden crear más de 3 niveles de subcategorías', {
+          style: {
+            background: '#fef3c7',
+            color: '#d97706',
+            border: '1px solid #fde68a',
+          },
+        });
+        return;
+      }
+      current = current.parent as Category;
+    }
+
     setEditingCategory(null);
     setPreselectedParent(parentCategory);
     setIsModalOpen(true);
@@ -1128,119 +1285,6 @@ export default function CategoriesPage() {
     } catch (error: any) {
       const errorMessage =
         error?.graphQLErrors?.[0]?.message || error?.message || 'Error al restaurar la categoría';
-
-      if (
-        errorMessage.toLowerCase().includes('permission') ||
-        errorMessage.toLowerCase().includes('unauthorized') ||
-        errorMessage.toLowerCase().includes('forbidden')
-      ) {
-        toast.error('No tienes permisos para restaurar esta categoría', {
-          style: {
-            background: '#fef3c7',
-            color: '#d97706',
-            border: '1px solid #fde68a',
-          },
-        });
-      } else {
-        toast.error(errorMessage, {
-          style: {
-            background: '#fee2e2',
-            color: '#dc2626',
-            border: '1px solid #fca5a5',
-          },
-        });
-      }
-    }
-  };
-
-  // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, category: Category) => {
-    setDraggedItem(category);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent, category: Category) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDraggedOverItem(category);
-  };
-
-  const handleDragLeave = () => {
-    setDraggedOverItem(null);
-  };
-
-  const handleDrop = async (e: React.DragEvent, dropTarget: Category) => {
-    e.preventDefault();
-
-    if (!draggedItem || draggedItem.id === dropTarget.id) {
-      setDraggedItem(null);
-      setDraggedOverItem(null);
-      return;
-    }
-
-    // Only allow reordering within the same store and same status (active/inactive)
-    if (
-      draggedItem.store?.id !== dropTarget.store?.id ||
-      draggedItem.isActive !== dropTarget.isActive
-    ) {
-      toast.error('Solo puedes reordenar categorías dentro de la misma tienda y estado', {
-        style: {
-          background: '#fef3c7',
-          color: '#d97706',
-          border: '1px solid #fde68a',
-        },
-      });
-      setDraggedItem(null);
-      setDraggedOverItem(null);
-      return;
-    }
-
-    try {
-      // Get all categories for the same store and status, sorted by current order
-      // Reorder only among categories that belong to the same store, same active state,
-      // and the same parent (so subcategories reorder within their parent).
-      const draggedParentId = draggedItem.parent?.id || null;
-      const sameStoreCategories = filteredCategories
-        .filter((cat) => {
-          const parentId = cat.parent?.id || null;
-          return (
-            cat.store?.id === draggedItem.store?.id &&
-            cat.isActive === draggedItem.isActive &&
-            parentId === draggedParentId
-          );
-        })
-        .sort((a, b) => a.order - b.order);
-
-      // Find positions
-      const draggedIndex = sameStoreCategories.findIndex((cat) => cat.id === draggedItem.id);
-      const targetIndex = sameStoreCategories.findIndex((cat) => cat.id === dropTarget.id);
-
-      if (draggedIndex === -1 || targetIndex === -1) return;
-
-      // Create new array with reordered items
-      const reorderedCategories = [...sameStoreCategories];
-      const [removed] = reorderedCategories.splice(draggedIndex, 1);
-      reorderedCategories.splice(targetIndex, 0, removed);
-
-      // Create the category orders array for the mutation
-      const categoryOrders = reorderedCategories.map((category, index) => ({
-        id: category.id,
-        order: index + 1,
-      }));
-
-      // Execute the reorder mutation
-      await reorderCategories({
-        variables: {
-          storeId: draggedItem.store?.id || userData?.storeId,
-          categoryOrders,
-        },
-      });
-
-      toast.success('Categorías reordenadas exitosamente');
-      refetch();
-    } catch (error: any) {
-      const errorMessage =
-        error?.graphQLErrors?.[0]?.message || error?.message || 'Error al reordenar categorías';
       toast.error(errorMessage, {
         style: {
           background: '#fee2e2',
@@ -1248,15 +1292,7 @@ export default function CategoriesPage() {
           border: '1px solid #fca5a5',
         },
       });
-    } finally {
-      setDraggedItem(null);
-      setDraggedOverItem(null);
     }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDraggedOverItem(null);
   };
 
   const confirmDelete = async () => {
@@ -1280,58 +1316,13 @@ export default function CategoriesPage() {
     } catch (error: any) {
       const errorMessage =
         error?.graphQLErrors?.[0]?.message || error?.message || 'Error al procesar la operación';
-
-      // Handle specific error messages
-      if (errorMessage.includes('Cannot delete category with active subcategories')) {
-        toast.error(
-          `No se puede eliminar la categoría "${deleteModal.category.name}" porque tiene subcategorías activas. Elimina las subcategorías primero.`,
-          {
-            style: {
-              background: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fca5a5',
-            },
-          }
-        );
-      } else if (
-        errorMessage.toLowerCase().includes('productos asociados') ||
-        errorMessage.toLowerCase().includes('has products') ||
-        (errorMessage.toLowerCase().includes('cannot delete') &&
-          errorMessage.toLowerCase().includes('products'))
-      ) {
-        toast.error(
-          `No se puede eliminar la categoría "${deleteModal.category.name}" porque tiene productos asociados. Reasigna o elimina los productos primero.`,
-          {
-            style: {
-              background: '#fef3c7',
-              color: '#d97706',
-              border: '1px solid #fde68a',
-            },
-          }
-        );
-      } else if (
-        errorMessage.toLowerCase().includes('constraint') ||
-        errorMessage.toLowerCase().includes('foreign key')
-      ) {
-        toast.error(
-          `No se puede eliminar la categoría "${deleteModal.category.name}" debido a restricciones de integridad. Verifica que no tenga elementos dependientes.`,
-          {
-            style: {
-              background: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fca5a5',
-            },
-          }
-        );
-      } else {
-        toast.error(errorMessage, {
-          style: {
-            background: '#fee2e2',
-            color: '#dc2626',
-            border: '1px solid #fca5a5',
-          },
-        });
-      }
+      toast.error(errorMessage, {
+        style: {
+          background: '#fee2e2',
+          color: '#dc2626',
+          border: '1px solid #fca5a5',
+        },
+      });
     }
   };
 
@@ -1384,7 +1375,7 @@ export default function CategoriesPage() {
               Categorías
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Gestiona las categorías de productos
+              Gestiona todas las categorías del sistema
             </p>
           </div>
           <button
@@ -1398,13 +1389,13 @@ export default function CategoriesPage() {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Buscar por nombre o slug..."
+                placeholder="Buscar por nombre, slug o tienda..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -1422,6 +1413,21 @@ export default function CategoriesPage() {
               <option value="all">Todos los estados</option>
               <option value="active">Activos</option>
               <option value="deleted">Archivados</option>
+            </select>
+
+            {/* Store Filter */}
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              aria-label="Filtrar por tienda"
+            >
+              <option value="all">Todas las tiendas</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -1480,7 +1486,7 @@ export default function CategoriesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {categoryTree.map((category) => renderCategoryRow(category))}
+                    {renderCategoryRows(categoryTree)}
                   </tbody>
                 </table>
               </div>
@@ -1493,7 +1499,7 @@ export default function CategoriesPage() {
                   Categorías ({filteredCategories.length})
                 </h2>
               </div>
-              {categoryTree.map((category) => renderCategoryCard(category))}
+              {renderCategoryCards(categoryTree)}
             </div>
           </>
         )}
@@ -1503,7 +1509,6 @@ export default function CategoriesPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           category={editingCategory || undefined}
-          storeId={userData?.storeId}
           onSuccess={handleModalSuccess}
           availableCategories={categories}
           preselectedParent={preselectedParent}

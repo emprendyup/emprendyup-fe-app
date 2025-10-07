@@ -20,6 +20,7 @@ import {
   CreditCard,
   Wrench,
   Package,
+  Wallet,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
@@ -36,6 +37,7 @@ const navigation = [
   { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
   { name: 'Productos', href: '/dashboard/products', icon: Package },
   { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
+  { name: 'Wallets', href: '/dashboard/wallet', icon: Wallet },
   { name: 'Pagos Configuracion', href: '/dashboard/config', icon: Wrench },
   { name: 'Tienda', href: '/dashboard/store', icon: Store },
   { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
@@ -113,7 +115,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         item.name !== 'Blog' &&
         item.name !== 'Configuración' &&
         item.name !== 'Tiendas' &&
-        item.name !== 'Usuarios'
+        item.name !== 'Usuarios' &&
+        item.name !== 'Wallets'
     );
   }
 

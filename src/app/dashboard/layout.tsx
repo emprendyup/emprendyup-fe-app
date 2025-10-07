@@ -21,6 +21,9 @@ import {
   Wrench,
   Package,
   Wallet,
+  UserStar,
+  MessageCircleCodeIcon,
+  BookTemplate,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
@@ -30,17 +33,21 @@ import { toast } from 'sonner';
 
 const navigation = [
   { name: 'Estadísticas', href: '/dashboard/insights', icon: BarChart3 },
+  { name: 'Tienda', href: '/dashboard/store', icon: Store },
+  { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
   { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
   // { name: 'Clientes', href: '/dashboard/customers', icon: Users },
   { name: 'Usuarios', href: '/dashboard/users', icon: Users },
+  { name: 'Emprendedores', href: '/dashboard/entrepeneurs', icon: UserStar },
   { name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users },
+  { name: 'Mensajes', href: '/dashboard/whatsapp-messages', icon: MessageCircleCodeIcon },
+  { name: 'Templates', href: '/dashboard/whatsapp-templates', icon: BookTemplate },
   { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
   { name: 'Productos', href: '/dashboard/products', icon: Package },
   { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
   { name: 'Wallets', href: '/dashboard/wallet', icon: Wallet },
   { name: 'Pagos Configuracion', href: '/dashboard/config', icon: Wrench },
-  { name: 'Tienda', href: '/dashboard/store', icon: Store },
-  { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
+
   { name: 'Blog', href: '/dashboard/blog', icon: FileText },
 ];
 
@@ -116,7 +123,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         item.name !== 'Configuración' &&
         item.name !== 'Tiendas' &&
         item.name !== 'Usuarios' &&
-        item.name !== 'Wallets'
+        item.name !== 'Wallets' &&
+        item.name !== 'Mensajes' &&
+        item.name !== 'Templates' &&
+        item.name !== 'Emprendedores'
     );
   }
 

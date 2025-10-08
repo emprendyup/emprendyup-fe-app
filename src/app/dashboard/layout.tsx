@@ -8,12 +8,12 @@ import {
   ShoppingCart,
   Users,
   Gift,
-  Settings,
   Store,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   FileText,
   Loader,
@@ -21,9 +21,10 @@ import {
   Wrench,
   Package,
   Wallet,
-  UserStar,
-  MessageCircleCodeIcon,
-  BookTemplate,
+  Star,
+  MessageCircle,
+  BookOpen,
+  Layers,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
@@ -31,36 +32,96 @@ import { getCurrentUser } from '@/lib/utils/rbac';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
 
-const navigation = [
-  { name: 'Estadísticas', href: '/dashboard/insights', icon: BarChart3 },
-  { name: 'Tienda', href: '/dashboard/store', icon: Store },
-  { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
-  { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
-  // { name: 'Clientes', href: '/dashboard/customers', icon: Users },
-  { name: 'Usuarios', href: '/dashboard/users', icon: Users },
-  { name: 'Emprendedores', href: '/dashboard/entrepeneurs', icon: UserStar },
-  { name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users },
-  { name: 'Mensajes', href: '/dashboard/whatsapp-messages', icon: MessageCircleCodeIcon },
-  { name: 'Templates', href: '/dashboard/whatsapp-templates', icon: BookTemplate },
-  { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
-  { name: 'Productos', href: '/dashboard/products', icon: Package },
-  { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
-  { name: 'Wallets', href: '/dashboard/wallet', icon: Wallet },
-  { name: 'Pagos Configuracion', href: '/dashboard/config', icon: Wrench },
-
-  { name: 'Blog', href: '/dashboard/blog', icon: FileText },
+// Estructura de navegación agrupada para ADMIN
+const adminNavigationGroups = [
+  {
+    name: 'Tienda',
+    icon: Store,
+    items: [
+      { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
+      { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
+      { name: 'Productos', href: '/dashboard/products', icon: Package },
+    ],
+  },
+  {
+    name: 'Usuarios',
+    icon: Users,
+    items: [
+      { name: 'Usuarios', href: '/dashboard/users', icon: Users },
+      { name: 'Emprendedores', href: '/dashboard/entrepeneurs', icon: Star },
+    ],
+  },
+  {
+    name: 'WhatsApp',
+    icon: MessageCircle,
+    items: [
+      { name: 'Mensajes', href: '/dashboard/whatsapp-messages', icon: MessageCircle },
+      { name: 'Templates', href: '/dashboard/whatsapp-templates', icon: BookOpen },
+    ],
+  },
+  {
+    name: 'Pagos',
+    icon: CreditCard,
+    items: [
+      { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
+      { name: 'Wallets', href: '/dashboard/wallet', icon: Wallet },
+      { name: 'Configuración', href: '/dashboard/config', icon: Wrench },
+    ],
+  },
+  {
+    name: 'Otros',
+    icon: Gift,
+    items: [
+      { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
+      { name: 'Blog', href: '/dashboard/blog', icon: FileText },
+      { name: 'Mi suscripción', href: '/dashboard/plans', icon: Layers },
+      { name: 'Estadísticas', href: '/dashboard/insights', icon: BarChart3 },
+    ],
+  },
 ];
 
-// const adminNavigation = [{ name: 'Admin', href: '/dashboard/admin', icon: User }];
+// Estructura de navegación agrupada para STORE_ADMIN
+const storeAdminNavigationGroups = [
+  {
+    name: 'Tienda',
+    icon: Store,
+    items: [
+      { name: 'Tienda', href: '/dashboard/store', icon: Store },
+      { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
+      { name: 'Productos', href: '/dashboard/products', icon: Package },
+    ],
+  },
+  {
+    name: 'Usuarios',
+    icon: Users,
+    items: [{ name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users }],
+  },
+  {
+    name: 'Pagos',
+    icon: CreditCard,
+    items: [
+      { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
+      { name: 'Configuración', href: '/dashboard/config', icon: Wrench },
+    ],
+  },
+  {
+    name: 'Otros',
+    icon: Gift,
+    items: [
+      { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
+      { name: 'Mi suscripción', href: '/dashboard/plans', icon: Layers },
+    ],
+  },
+];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-
   const pathname = usePathname();
   const { user, setUser } = useSessionStore();
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const hideDashboardChrome = Boolean(pathname && pathname.includes('/dashboard/store/new'));
 
@@ -85,8 +146,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       window.location.href = '/';
     }, 1500);
   };
+
+  const toggleGroup = (groupName: string) => {
+    // Si el sidebar está colapsado, primero lo expandimos
+    if (collapsed) {
+      setCollapsed(false);
+    }
+
+    // Cerramos todos los grupos excepto el que se está abriendo
+    setExpandedGroups((prev) => {
+      const isCurrentlyExpanded = prev[groupName];
+      const newState: Record<string, boolean> = {};
+
+      // Si el grupo actual está expandido, lo cerramos
+      // Si está cerrado, cerramos todos los demás y abrimos este
+      if (!isCurrentlyExpanded) {
+        newState[groupName] = true;
+      }
+
+      return newState;
+    });
+  };
+
   if (!user) {
-    return <div>Cargando...</div>; // o spinner
+    return <div>Cargando...</div>;
   }
 
   if (isLoading) {
@@ -110,25 +193,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return <div className="min-h-screen bg-slate-50 dark:bg-slate-900">{children}</div>;
   }
 
-  let allNavigation = [] as typeof navigation;
-
-  if (user.role === 'ADMIN') {
-    allNavigation = [...navigation].filter(
-      (item) => item.name !== 'Tienda' && item.name !== 'Usuarios por tienda'
-    );
-  } else if (user.role === 'STORE_ADMIN') {
-    allNavigation = navigation.filter(
-      (item) =>
-        item.name !== 'Blog' &&
-        item.name !== 'Configuración' &&
-        item.name !== 'Tiendas' &&
-        item.name !== 'Usuarios' &&
-        item.name !== 'Wallets' &&
-        item.name !== 'Mensajes' &&
-        item.name !== 'Templates' &&
-        item.name !== 'Emprendedores'
-    );
-  }
+  const navigationGroups =
+    user.role === 'ADMIN' ? adminNavigationGroups : storeAdminNavigationGroups;
 
   return (
     <div
@@ -171,35 +237,79 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </div>
 
-          {/* Navegación */}
-          <div className="flex-1 px-4 py-4 space-y-1 items-center justify-center">
-            {allNavigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          {/* Navegación agrupada */}
+          <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+            {navigationGroups.map((group) => {
+              const isGroupExpanded = expandedGroups[group.name];
+              const hasActiveItem = group.items.some(
+                (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+              );
+
               return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setCollapsed(true)} // Colapsar al hacer clic
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-fourth-base text-black'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <item.icon
-                    className={`mr-0 pl-3 md:mr-3 h-8 w-8 ${
-                      isActive ? 'text-black' : 'text-gray-400 group-hover:text-gray-500'
+                <div key={group.name}>
+                  {/* Encabezado del grupo */}
+                  <button
+                    onClick={() => toggleGroup(group.name)}
+                    className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                      hasActiveItem
+                        ? 'bg-fourth-base/10 text-black dark:text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
-                  />
-                  {!collapsed && <span className="truncate">{item.name}</span>}
-                </Link>
+                  >
+                    <group.icon
+                      className={`mr-0 pl-3 md:mr-3 h-8 w-8 flex-shrink-0 ${
+                        hasActiveItem
+                          ? 'text-black dark:text-white'
+                          : 'text-gray-400 group-hover:text-gray-500'
+                      }`}
+                    />
+                    {!collapsed && (
+                      <>
+                        <span className="truncate flex-1 text-left">{group.name}</span>
+                        {isGroupExpanded ? (
+                          <ChevronDown className="h-4 w-4 ml-auto" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 ml-auto" />
+                        )}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Items del grupo (solo si no está colapsado y el grupo está expandido) */}
+                  {!collapsed && isGroupExpanded && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {group.items.map((item) => {
+                        const isActive =
+                          pathname === item.href || pathname.startsWith(item.href + '/');
+                        return (
+                          <Link
+                            key={item.name}
+                            href={item.href}
+                            onClick={() => setCollapsed(true)}
+                            className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                              isActive
+                                ? 'bg-fourth-base text-black'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <item.icon
+                              className={`mr-3 h-5 w-5 ${
+                                isActive ? 'text-black' : 'text-gray-400 group-hover:text-gray-500'
+                              }`}
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
 
           {/* Pie de barra lateral: usuario y acciones */}
           <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-            {/* Vista expandida */}
             {!collapsed ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
@@ -227,7 +337,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </button>
               </div>
             ) : (
-              /* Vista compacta */
               <div className="flex flex-col items-center gap-2">
                 <Image
                   src={user?.avatar || '/images/client/16.jpg'}
@@ -275,35 +384,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
             </div>
 
-            <div className="flex-1 px-4 py-4 space-y-1">
-              {allNavigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
+              {navigationGroups.map((group) => {
+                const isGroupExpanded = expandedGroups[group.name];
+                const hasActiveItem = group.items.some(
+                  (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+                );
+
                 return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)} // Cerrar al hacer clic
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-fourth-base text-black'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <item.icon
-                      className={`mr-3 h-5 w-5 ${isActive ? 'text-black' : 'text-gray-400 group-hover:text-gray-500'}`}
-                    />
-                    <span className="truncate">{item.name}</span>
-                  </Link>
+                  <div key={group.name}>
+                    <button
+                      onClick={() => toggleGroup(group.name)}
+                      className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                        hasActiveItem
+                          ? 'bg-fourth-base/10 text-black dark:text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <group.icon
+                        className={`mr-3 h-5 w-5 ${
+                          hasActiveItem
+                            ? 'text-black dark:text-white'
+                            : 'text-gray-400 group-hover:text-gray-500'
+                        }`}
+                      />
+                      <span className="truncate flex-1 text-left">{group.name}</span>
+                      {isGroupExpanded ? (
+                        <ChevronDown className="h-4 w-4 ml-auto" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 ml-auto" />
+                      )}
+                    </button>
+
+                    {isGroupExpanded && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        {group.items.map((item) => {
+                          const isActive =
+                            pathname === item.href || pathname.startsWith(item.href + '/');
+                          return (
+                            <Link
+                              key={item.name}
+                              href={item.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                                isActive
+                                  ? 'bg-fourth-base text-black'
+                                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              <item.icon
+                                className={`mr-3 h-5 w-5 ${
+                                  isActive
+                                    ? 'text-black'
+                                    : 'text-gray-400 group-hover:text-gray-500'
+                                }`}
+                              />
+                              <span className="truncate">{item.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
 
-              {/* Logout button in mobile navigation */}
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 mt-4"
               >
                 <LogOut className="mr-3 h-5 w-5 text-red-500 group-hover:text-red-600" />
                 <span className="truncate">Cerrar Sesión</span>
@@ -315,12 +466,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Contenido principal */}
       <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 grid grid-rows-[auto_1fr] min-h-screen">
-        {/* Barra superior */}
         <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            {/* Lado izquierdo: botón hamburguesa + fecha */}
             <div className="flex items-center space-x-4">
-              {/* Botón hamburguesa solo en móvil */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
                 className="p-2 rounded-md text-gray-400 hover:text-gray-500 lg:hidden"
@@ -341,7 +489,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* Contenido de la página */}
         <main className="overflow-auto bg-gray-50 dark:bg-gray-900">
           <div className="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:p-8 auto-rows-max">{children}</div>
         </main>

@@ -929,13 +929,10 @@ export function ProductFormWizard({
             formData.append('folderName', store.name.replace(/[^a-zA-Z0-9-_]/g, '_'));
           }
 
-          const uploadResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_REST_API_ENDPOINT}/upload/images`,
-            {
-              method: 'POST',
-              body: formData,
-            }
-          );
+          const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/images`, {
+            method: 'POST',
+            body: formData,
+          });
 
           if (!uploadResponse.ok) {
             throw new Error(`Upload failed: ${uploadResponse.statusText}`);

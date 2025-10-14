@@ -25,6 +25,7 @@ import {
   MessageCircle,
   BookOpen,
   Layers,
+  List,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
@@ -41,6 +42,7 @@ const adminNavigationGroups = [
       { name: 'Tiendas', href: '/dashboard/stores', icon: Store },
       { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
       { name: 'Productos', href: '/dashboard/products', icon: Package },
+      { name: 'Categorias por tienda', href: '/dashboard/categoriesAdmin', icon: List },
     ],
   },
   {
@@ -89,6 +91,7 @@ const storeAdminNavigationGroups = [
       { name: 'Tienda', href: '/dashboard/store', icon: Store },
       { name: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart },
       { name: 'Productos', href: '/dashboard/products', icon: Package },
+      { name: 'Categorias', href: '/dashboard/categories', icon: List },
     ],
   },
   {

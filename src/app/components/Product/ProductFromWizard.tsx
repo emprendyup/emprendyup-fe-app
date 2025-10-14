@@ -1165,7 +1165,7 @@ export function ProductFormWizard({
       };
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_REST_API_ENDPOINT}/chatbot/create-product-description`,
+        `${process.env.NEXT_PUBLIC_API_URL}/chatbot/create-product-description`,
         {
           method: 'POST',
           headers: {

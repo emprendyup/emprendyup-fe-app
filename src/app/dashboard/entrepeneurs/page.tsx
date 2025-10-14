@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { gql, useQuery } from '@apollo/client';
-import { Search, Filter, Send, MessageCircle, Mail, Globe, User, MapPin } from 'lucide-react';
+import { Search, Send, MessageCircle, Mail, Globe, User, MapPin } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // 🔹 Query GraphQL
 const GET_ENTREPRENEURS = gql`
@@ -77,11 +78,48 @@ const WhatsappCampaignPage = () => {
       return;
     }
 
-    // Aquí llamarías a tu endpoint real:
-    // await fetch('/api/send-template', { method: 'POST', body: JSON.stringify({ recipients: selectedIds }) })
+    try {
+      const phoneNumbers = selectedIds.map((id) => {
+        const ent = entrepreneurs.find((e) => e.id === id);
+        return ent && ent?.phone?.startsWith('+') ? ent.phone : `+57${ent?.phone}`;
+      });
 
-    console.log('Enviando campaña a IDs:', selectedIds);
-    alert(`Campaña enviada a ${selectedIds.length} emprendedor(es).`);
+      const payload = {
+        phoneNumbers,
+        templateName: 'creacion_tienda',
+        languageCode: 'es_CO',
+        parameters: [
+          {
+            type: 'text',
+            parameter_name: 'name',
+            text: 'emprendedor',
+          },
+        ],
+      };
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/whatsapp/send-bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
+        toast.error(`Error al enviar la campaña: ${errorData.message || response.statusText}`);
+        return;
+      }
+
+      const data = await response.json();
+      toast.success(
+        `✅ Campaña enviada correctamente a ${data.sentCount || selectedIds.length} emprendedor(es).`
+      );
+    } catch (error) {
+      console.error('Error general al enviar la campaña:', error);
+      toast.error('Hubo un error al enviar la campaña. Revisa la consola.');
+    }
   };
 
   if (loading)

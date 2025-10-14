@@ -4,17 +4,14 @@ import React, { useState } from 'react';
 import { Search, MessageCircle, Phone, Clock, Filter, Send } from 'lucide-react';
 import { useQuery, gql } from '@apollo/client';
 
-const GET_WHATSAPP_CONVERSATIONS = gql`
-  query GetWhatsAppConversations {
-    whatsappConversations {
-      count
-      conversations {
-        phoneNumber
-        contactName
-        lastMessage
-        lastMessageTime
-        messageCount
-      }
+const GET_WHATSAPP_MESSAGES = gql`
+  query GetAllWhatsAppMessages {
+    getAllWhatsAppMessages {
+      id
+      templateName
+      to
+      messageId
+      timestamp
     }
   }
 `;
@@ -31,7 +28,7 @@ const WhatsAppConversations = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
 
-  const { loading, error, data } = useQuery(GET_WHATSAPP_CONVERSATIONS);
+  const { loading, error, data } = useQuery(GET_WHATSAPP_MESSAGES);
 
   const conversations = data?.whatsappConversations?.conversations || [];
   const totalCount = data?.whatsappConversations?.count || 0;

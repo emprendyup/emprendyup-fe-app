@@ -1351,7 +1351,7 @@ export function ProductFormWizard({
 
                   {/* Dropdown Menu */}
                   {isOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-fourth-400/50 rounded-lg shadow-2xl z-50 max-h-80 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-fourth-400/50 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
                       {transformedCategories.map((category: any) => (
                         <div key={category.id}>
                           {/* Parent Category */}
@@ -1359,9 +1359,17 @@ export function ProductFormWizard({
                             onClick={() =>
                               handleSelectCategory(category.id, category.name, category.slug, true)
                             }
-                            className="w-full text-left px-4 py-3 hover:bg-fourth-400/10 text-white font-medium transition-colors border-b border-gray-700 last:border-b-0"
+                            className={`w-full text-left px-4 py-3 hover:bg-fourth-400/10 text-white font-medium transition-colors border-b border-gray-700 last:border-b-0 flex items-center gap-3 ${
+                              categories.some((c) => c.id === category.id)
+                                ? 'bg-fourth-400/20 text-fourth-200'
+                                : ''
+                            }`}
                           >
-                            <span className="text-fourth-base">◆</span> {category.name}
+                            <span className="text-fourth-base">◆</span>
+                            <span>{category.name}</span>
+                            {categories.some((c) => c.id === category.id) && (
+                              <span className="ml-auto text-green-400 font-semibold">✓</span>
+                            )}
                           </button>
 
                           {/* Child Categories */}
@@ -1372,9 +1380,17 @@ export function ProductFormWizard({
                                 onClick={() =>
                                   handleSelectCategory(child.id, child.name, child.slug)
                                 }
-                                className="w-full text-left px-8 py-2.5 hover:bg-gray-700 text-gray-300 hover:text-fourth-base transition-colors text-sm"
+                                className={`w-full text-left px-8 py-2.5 hover:bg-gray-700 text-gray-300 hover:text-fourth-base transition-colors text-sm flex items-center ${
+                                  categories.some((c) => c.id === child.id)
+                                    ? 'bg-gray-700 text-fourth-200'
+                                    : ''
+                                }`}
                               >
-                                └─ {child.name}
+                                <span className="mr-2">└─</span>
+                                <span className="truncate">{child.name}</span>
+                                {categories.some((c) => c.id === child.id) && (
+                                  <span className="ml-auto text-green-400">✓</span>
+                                )}
                               </button>
                             ))}
                         </div>

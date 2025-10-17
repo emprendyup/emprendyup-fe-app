@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader } from 'lucide-react';
 
 const OTP_EXPIRATION_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
 
-export default function OTPConfirmationPage() {
+function OTPConfirmation() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -171,5 +172,12 @@ export default function OTPConfirmationPage() {
         </div>
       </div>
     </section>
+  );
+}
+export default function OTPConfirmationPage() {
+  return (
+    <Suspense fallback={<Loader className="size-16 mx-auto text-slate-300" />}>
+      <OTPConfirmation />
+    </Suspense>
   );
 }

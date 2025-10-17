@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader } from 'lucide-react';
 
 const OTP_EXPIRATION_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
 
-export default function OTPConfirmationPage() {
+function OTPConfirmation() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -25,6 +27,12 @@ export default function OTPConfirmationPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [expiration]);
+
+  // read email from query string once on mount
+  useEffect(() => {
+    const e = searchParams.get('email');
+    if (e) setEmail(decodeURIComponent(e));
+  }, [searchParams]);
 
   // Countdown for resend cooldown
   useEffect(() => {
@@ -100,21 +108,6 @@ export default function OTPConfirmationPage() {
         </p>
         <form onSubmit={handleSubmit} className="mb-4">
           <label
-            htmlFor="email"
-            className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"
-          >
-            Correo electrónico
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border rounded bg-transparent text-black dark:text-white dark:border-gray-700 mb-4"
-            placeholder="nombre@gmail.com"
-            required
-          />
-          <label
             htmlFor="otp"
             className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300"
           >
@@ -179,5 +172,12 @@ export default function OTPConfirmationPage() {
         </div>
       </div>
     </section>
+  );
+}
+export default function OTPConfirmationPage() {
+  return (
+    <Suspense fallback={<Loader className="size-16 mx-auto text-slate-300" />}>
+      <OTPConfirmation />
+    </Suspense>
   );
 }

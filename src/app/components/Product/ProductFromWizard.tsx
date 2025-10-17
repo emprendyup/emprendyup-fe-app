@@ -35,6 +35,9 @@ import {
   Tag,
   Plus,
   Settings,
+  Check,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMutation, useQuery } from '@apollo/client';
@@ -101,6 +104,7 @@ const CREATE_PRODUCT_WITH_URLS = gql`
     }
   }
 `;
+
 const GET_STORE_CONFIG = gql`
   query GetStore($storeId: String!) {
     store(storeId: $storeId) {
@@ -110,6 +114,7 @@ const GET_STORE_CONFIG = gql`
     }
   }
 `;
+
 const UPDATE_PRODUCT = gql`
   mutation UpdateProduct($id: String!, $input: UpdateProductInput!) {
     updateProduct(id: $id, input: $input) {
@@ -142,6 +147,7 @@ const UPDATE_PRODUCT = gql`
     }
   }
 `;
+
 const GET_CATEGORIES_BY_STORE = gql`
   query GetCategoriesByStore($storeId: ID!) {
     categoriesByStore(storeId: $storeId) {
@@ -151,13 +157,13 @@ const GET_CATEGORIES_BY_STORE = gql`
       description
       isActive
       order
-      createdAt
-      updatedAt
-      store {
+      parentId
+      parent {
         id
         name
+        slug
       }
-      parent {
+      children {
         id
         name
         slug
@@ -165,6 +171,7 @@ const GET_CATEGORIES_BY_STORE = gql`
     }
   }
 `;
+
 // New GraphQL operations for variant combinations
 const CREATE_VARIANT_COMBINATION = gql`
   mutation CreateVariantCombination($input: CreateVariantCombinationInput!) {
@@ -193,8 +200,6 @@ const CREATE_VARIANTS = gql`
     createVariants(inputs: $inputs)
   }
 `;
-
-// REMOVED: GET_VARIANT_COMBINATIONS (invalid field)
 
 const GENERATE_ALL_COMBINATIONS = gql`
   query GenerateAllCombinations($productId: String!) {
@@ -247,7 +252,6 @@ interface Step {
   required: boolean;
 }
 
-// Custom variant interface for the form
 interface CustomVariant {
   id: string;
   type: string;
@@ -255,7 +259,6 @@ interface CustomVariant {
   value: string;
 }
 
-// Variant combination interface
 interface VariantCombination {
   id: string;
   name: string;
@@ -266,7 +269,7 @@ interface VariantCombination {
   }>;
   stock: number;
   price?: number;
-  stockId?: string; // For updating existing stocks
+  stockId?: string;
 }
 
 export function ProductFormWizard({
@@ -275,7 +278,6 @@ export function ProductFormWizard({
   onCancel,
   loading = false,
 }: ProductFormWizardProps) {
-  // Sync form state with product prop when editing
   useEffect(() => {
     if (product) {
       setFormData({
@@ -324,8 +326,6 @@ export function ProductFormWizard({
           return oldSizes;
         })()
       );
-      // Robustly map categories to ProductCategory shape
-      // Map and deduplicate categories by id
       const mappedCategories = (product.categories || []).map((cat: any) => {
         const c = cat.category || cat;
         return {
@@ -334,7 +334,6 @@ export function ProductFormWizard({
           slug: c.slug || c.name?.toLowerCase().replace(/\s+/g, '-') || '',
         };
       });
-      // Deduplicate by id
       const uniqueCategories = mappedCategories.filter(
         (cat, idx, arr) => arr.findIndex((c) => c.id === cat.id) === idx
       );
@@ -346,23 +345,21 @@ export function ProductFormWizard({
       }
     }
   }, [product]);
-  // Error state for form validation
+  const [isOpen, setIsOpen] = useState(false);
   const [errors, setErrors] = useState<any>({});
-
-  // Saving/loading state
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+
   const userData = JSON.parse(localStorage.getItem('user') || '{}');
+
   const { data, error } = useQuery(GET_STORE_CONFIG, {
     variables: { storeId: userData?.storeId || '' },
     skip: !userData?.storeId,
   });
   const store = data?.store;
 
-  // Step navigation state
   const [currentStep, setCurrentStep] = useState<StepType>('basic');
 
-  // Stepper UI for direct navigation
   const Stepper = () => (
     <div className="flex items-center justify-center mb-8">
       {steps.map((step, idx) => {
@@ -394,53 +391,43 @@ export function ProductFormWizard({
       })}
     </div>
   );
+
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [customVariants, setCustomVariants] = useState<CustomVariant[]>([]);
 
-  // --- Helper: validateStep ---
   function validateStep(stepId: StepType): boolean {
-    // TODO: Implement actual validation logic for each step
     return true;
   }
 
-  // --- Helper: isStepCompleted ---
   function isStepCompleted(stepId: StepType): boolean {
-    // TODO: Implement actual logic for step completion
     return completedSteps.has(stepId);
   }
 
-  // --- Helper: goToStep ---
   function goToStep(stepId: StepType) {
     setCurrentStep(stepId);
   }
-  const [completedSteps, setCompletedSteps] = useState<Set<StepType>>(new Set());
 
-  // State for loading variant combinations
+  const [completedSteps, setCompletedSteps] = useState<Set<StepType>>(new Set());
   const [loadingCombinations, setLoadingCombinations] = useState(false);
 
-  // GraphQL mutations and queries
   const [createProductWithUrls] = useMutation(CREATE_PRODUCT_WITH_URLS);
   const [updateProduct] = useMutation(UPDATE_PRODUCT);
   const [createVariantCombination] = useMutation(CREATE_VARIANT_COMBINATION);
   const [updateStock] = useMutation(UPDATE_STOCK);
   const [createVariants] = useMutation(CREATE_VARIANTS);
 
-  // Query to get all variant combinations for the product
   const { data: variantCombinationsData } = useQuery(GET_VARIANT_COMBINATIONS, {
     variables: { productId: product?.id || '' },
     skip: !product?.id,
     fetchPolicy: 'cache-and-network',
   });
-  const { data: categoriesData, refetch } = useQuery(GET_CATEGORIES_BY_STORE, {
+
+  const { data: categoriesData, refetch: refetchCategories } = useQuery(GET_CATEGORIES_BY_STORE, {
     variables: { storeId: userData?.storeId },
     skip: !userData?.storeId,
   });
 
-  // REMOVED: Query for existing variant combinations (invalid field)
-  // If you need variant data, use productVariantsData from GET_PRODUCT_VARIANTS
-
-  // Query to get all variant IDs for the product (for use in combinations)
   const { data: productVariantsData, refetch: refetchProductVariants } = useQuery(
     GET_PRODUCT_VARIANTS,
     {
@@ -450,12 +437,10 @@ export function ProductFormWizard({
     }
   );
 
-  // Sync colors and sizes from productVariantsData (all DB variants)
   useEffect(() => {
     if (productVariantsData && productVariantsData.productVariantsByProduct) {
       const allVariants = productVariantsData.productVariantsByProduct;
 
-      // Colors
       setColors(
         allVariants
           .filter((v: { type: string }) => v.type?.toLowerCase() === 'color')
@@ -466,7 +451,6 @@ export function ProductFormWizard({
           }))
       );
 
-      // Sizes
       setSizes(
         allVariants
           .filter((v: { type: string }) => v.type?.toLowerCase() === 'size')
@@ -477,7 +461,6 @@ export function ProductFormWizard({
           }))
       );
 
-      // Custom Variants (other types)
       interface BackendVariant {
         id: string;
         type: string;
@@ -513,7 +496,6 @@ export function ProductFormWizard({
     }
   }, [productVariantsData]);
 
-  // Define steps
   const steps: Step[] = [
     {
       id: 'basic',
@@ -559,7 +541,6 @@ export function ProductFormWizard({
     },
   ];
 
-  // Form state
   const [formData, setFormData] = useState({
     name: product?.name || '',
     title: product?.title || '',
@@ -570,20 +551,15 @@ export function ProductFormWizard({
     inStock: product?.inStock ?? true,
   });
 
-  // Calculate total stock from variant combinations
   const calculateTotalStock = (): number => {
     if (variantCombinations.length === 0) {
-      // If no variant combinations, return 0 (stock is managed through variants)
       return 0;
     }
-    // Sum all variant combination stocks
     return variantCombinations.reduce((total, combination) => total + (combination.stock || 0), 0);
   };
 
-  // Get the effective stock (calculated from variants or manual)
   const effectiveStock = calculateTotalStock();
 
-  // Update inStock status when variant combinations change
   useEffect(() => {
     if (variantCombinations.length > 0) {
       const calculatedStock = variantCombinations.reduce(
@@ -592,12 +568,11 @@ export function ProductFormWizard({
       );
       setFormData((prev) => ({
         ...prev,
-        inStock: calculatedStock > 0, // Automatically set inStock based on calculated stock
+        inStock: calculatedStock > 0,
       }));
     }
   }, [variantCombinations]);
 
-  // Sync variant combinations from backend to state
   useEffect(() => {
     if (variantCombinationsData && variantCombinationsData.variantCombinationsByProduct) {
       setVariantCombinations(
@@ -616,6 +591,7 @@ export function ProductFormWizard({
       );
     }
   }, [variantCombinationsData]);
+
   const [images, setImages] = useState<ProductImage[]>(
     product?.images?.map((img, index) => ({
       ...img,
@@ -623,9 +599,7 @@ export function ProductFormWizard({
     })) || []
   );
 
-  // Initialize colors and sizes from both old fields and variants
   const [colors, setColors] = useState<ProductColor[]>(() => {
-    // First try to get colors from old format
     const oldColors =
       product?.colors?.map((color: any) => ({
         id: color.id,
@@ -633,10 +607,8 @@ export function ProductFormWizard({
         hex: color.colorHex || color.hex || '#000000',
       })) || [];
 
-    // If we have variants, also extract colors from them
     if (product?.variants && product.variants.length > 0) {
       const variantColors = variantsToColors(product.variants);
-      // Merge and deduplicate
       const mergedColors = [...oldColors, ...variantColors];
       return mergedColors.filter(
         (color, index, self) => index === self.findIndex((c) => c.name === color.name)
@@ -647,15 +619,12 @@ export function ProductFormWizard({
   });
 
   const [sizes, setSizes] = useState<ProductSize[]>(() => {
-    // ...existing code for sizes initialization...
     return [];
   });
 
-  // Helper function to convert variants to new format
   const convertVariantsToNewFormat = () => {
     const variants: any[] = [];
 
-    // Add colors as variants
     colors.forEach((color) => {
       variants.push({
         type: 'color',
@@ -664,7 +633,6 @@ export function ProductFormWizard({
       });
     });
 
-    // Add sizes as variants
     sizes.forEach((size) => {
       variants.push({
         type: 'size',
@@ -673,7 +641,6 @@ export function ProductFormWizard({
       });
     });
 
-    // Add custom variants
     customVariants.forEach((variant) => {
       variants.push({
         type: variant.type,
@@ -685,7 +652,6 @@ export function ProductFormWizard({
     return variants;
   };
 
-  // Helper function to convert variant combinations to new format
   const convertVariantCombinationsToNewFormat = () => {
     if (!variantCombinations || variantCombinations.length === 0) return [];
 
@@ -693,13 +659,11 @@ export function ProductFormWizard({
 
     const convertedCombinations = variantCombinations
       .map((combination, index) => {
-        // Ensure combination.variants exists and is an array
         if (!combination.variants || !Array.isArray(combination.variants)) {
           console.warn(`Combination ${index} has invalid variants:`, combination);
           return null;
         }
 
-        // Create variant identifiers for each variant in the combination
         const variantIds = combination.variants
           .map((combVariant) => {
             if (!combVariant.type || !combVariant.name) {
@@ -708,7 +672,7 @@ export function ProductFormWizard({
             }
             return `${combVariant.type}:${combVariant.name}`;
           })
-          .filter(Boolean); // Remove null values
+          .filter(Boolean);
 
         const result = {
           variantIds: variantIds,
@@ -719,13 +683,12 @@ export function ProductFormWizard({
         console.log(`✅ Converted combination ${index}:`, result);
         return result;
       })
-      .filter(Boolean); // Remove null combinations
+      .filter(Boolean);
 
     console.log('🎯 Final converted combinations:', convertedCombinations);
     return convertedCombinations;
   };
 
-  // Function to update stocks for existing variant combinations
   const updateVariantCombinationStocks = async (combinationsToUpdate: VariantCombination[]) => {
     if (combinationsToUpdate.length === 0) return;
     try {
@@ -749,7 +712,6 @@ export function ProductFormWizard({
     }
   };
 
-  // Function to save variant combinations using the new backend API
   const saveVariantCombinations = async (productId: string, createdVariants?: any[]) => {
     if (variantCombinations.length === 0) return;
     try {
@@ -757,17 +719,12 @@ export function ProductFormWizard({
         id: 'variant-combinations',
       });
 
-      // For CREATE scenarios, always refetch to get the latest variants
-      // For UPDATE scenarios, use existing data first, then refetch if needed
       let allVariants = productVariantsData?.productVariantsByProduct || [];
 
-      // If this is a CREATE scenario (no existing productVariantsData), or if we have createdVariants,
-      // we should refetch to get the latest state
       if (!allVariants.length || createdVariants) {
         console.log('🔄 Refetching product variants for accurate state...');
         console.log('🔍 Using productId for refetch:', productId);
 
-        // Add longer delay for CREATE scenarios to ensure DB consistency
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const refetchResult = await refetchProductVariants({ productId });
@@ -781,28 +738,27 @@ export function ProductFormWizard({
         '🔍 Current variants in database:',
         allVariants.map((v: any) => `${v.type || v.typeVariant}:${v.name || v.nameVariant}`)
       );
-      // Separate combinations into new and existing (for updates)
+
       const combinationsToCreate = variantCombinations.filter(
         (c: VariantCombination) => !c.stockId
       );
       const combinationsToUpdate = variantCombinations.filter(
         (c: VariantCombination) => !!c.stockId
       );
-      // Update existing combinations first
+
       if (combinationsToUpdate.length > 0) {
         await updateVariantCombinationStocks(combinationsToUpdate);
       }
-      // --- PREVENT DUPLICATE VARIANT CREATION (CASE-INSENSITIVE) ---
-      // Gather all unique variants from combinations to create
+
       const variantsToCreate: Array<{
         name: string;
         type: string;
         productId: string;
         jsonData?: any;
       }> = [];
+
       combinationsToCreate.forEach((combination: VariantCombination) => {
         combination.variants.forEach((variant: any) => {
-          // Only add if not already in allVariants (case-insensitive type+name)
           const alreadyExists = allVariants.some(
             (v: { type: string; name: string }) =>
               v.type.trim().toLowerCase() === variant.type.trim().toLowerCase() &&
@@ -831,13 +787,13 @@ export function ProductFormWizard({
           }
         });
       });
-      // Only call createVariants if there are new variants to create
+
       if (variantsToCreate.length > 0) {
         console.log(`🚀 Creating ${variantsToCreate.length} new variants:`, variantsToCreate);
         await createVariants({ variables: { inputs: variantsToCreate } });
-        // Refetch product variants from backend to get latest IDs
+
         if (productId) {
-          await new Promise((resolve) => setTimeout(resolve, 400)); // slight delay for backend consistency
+          await new Promise((resolve) => setTimeout(resolve, 400));
           console.log('🔄 Refetching variants after creation...');
           const refetchResult = await refetchProductVariants({ productId });
           allVariants = refetchResult.data?.productVariantsByProduct || [];
@@ -847,16 +803,13 @@ export function ProductFormWizard({
         console.log('✅ No new variants to create - all variants already exist');
       }
 
-      // Now create combinations (variantIds should exist)
       if (combinationsToCreate.length > 0) {
         for (const combination of combinationsToCreate) {
-          // Find the variant IDs that correspond to this combination
           let variantIds: string[] = [];
           if (allVariants.length) {
             variantIds = combination.variants
               .map((variant: any) => {
                 const matched = allVariants.find((v: any) => {
-                  // Handle both possible field name formats
                   const vType = v.typeVariant || v.type || '';
                   const vName = v.nameVariant || v.name || '';
                   return (
@@ -882,7 +835,6 @@ export function ProductFormWizard({
               .filter(Boolean);
           }
           if (!variantIds.length && allVariantIds.length) {
-            // Fallback: skip this combination
             console.warn(
               '[saveVariantCombinations] Skipping combination with no variantIds:',
               combination
@@ -897,7 +849,6 @@ export function ProductFormWizard({
             combination.variants.map((v: any) => `${v.type}:${v.name}`)
           );
 
-          // Actually create the combination
           await createVariantCombination({
             variables: {
               input: {
@@ -916,17 +867,17 @@ export function ProductFormWizard({
       throw error;
     }
   };
-  // Navigation helpers
+
   const prevStep = () => {
     const idx = steps.findIndex((s) => s.id === currentStep);
     if (idx > 0) setCurrentStep(steps[idx - 1].id);
   };
+
   const nextStep = () => {
     const idx = steps.findIndex((s) => s.id === currentStep);
     if (idx < steps.length - 1) setCurrentStep(steps[idx + 1].id);
   };
 
-  // Function to upload images to the server
   const uploadImages = async (imagesToUpload: ProductImage[]): Promise<ProductImage[]> => {
     if (imagesToUpload.length === 0) return [];
 
@@ -937,20 +888,17 @@ export function ProductFormWizard({
 
     try {
       for (const image of imagesToUpload) {
-        // Skip images that already have URLs (already uploaded)
         if (image.url && !image.url.startsWith('blob:')) {
           uploadedImages.push(image);
           continue;
         }
 
         try {
-          // Convert blob URL to file for upload
           const response = await fetch(image.url);
           const blob = await response.blob();
 
           const formData = new FormData();
           formData.append('images', blob, image.alt || 'product-image.jpg');
-          // Add the business name as folder parameter (directly in uploads folder)
           if (store?.name) {
             formData.append('folderName', store.name.replace(/[^a-zA-Z0-9-_]/g, '_'));
           }
@@ -965,8 +913,6 @@ export function ProductFormWizard({
           }
 
           const uploadResult = await uploadResponse.json();
-
-          // Assuming the API returns { urls: ['url1', 'url2', ...] } or { url: 'single-url' }
           const uploadedUrl = uploadResult[0]?.key || uploadResult.url;
 
           if (uploadedUrl) {
@@ -996,7 +942,6 @@ export function ProductFormWizard({
   const handleSubmit = async () => {
     if (!store?.id) return;
 
-    // Validate all required steps
     const requiredSteps = steps.filter((s) => s.required);
     for (const step of requiredSteps) {
       if (!validateStep(step.id)) {
@@ -1011,11 +956,9 @@ export function ProductFormWizard({
 
     setIsSaving(true);
     try {
-      // Upload images before saving the product
       const uploadedImages = await uploadImages(images);
 
       if (product?.id) {
-        // UPDATE EXISTING PRODUCT
         const updateInput = {
           name: formData.name,
           title: formData.title,
@@ -1056,18 +999,16 @@ export function ProductFormWizard({
         });
 
         if (data.updateProduct) {
-          // Save variant combinations after product update
           if (variantCombinations.length > 0) {
             await saveVariantCombinations(product.id, data.updateProduct.variants);
           }
 
           toast.success('¡Producto actualizado exitosamente! 🎉');
-          onCancel(); // Close the form
+          onCancel();
         } else {
           throw new Error('No se pudo actualizar el producto');
         }
       } else {
-        // CREATE NEW PRODUCT
         const createInput = {
           name: formData.name,
           title: formData.title,
@@ -1084,16 +1025,12 @@ export function ProductFormWizard({
             url: img.url,
             order: index + 1,
           })),
-          // Keep legacy color/size fields for backward compatibility
           colors: colors.map((color) => ({
             color: color.name,
             colorHex: color.hex,
           })),
           sizes: sizes.map((size) => size.name),
-          // New variant fields
           variants: convertVariantsToNewFormat(),
-          // Temporarily remove variant combinations to test
-          // variantCombinations: convertVariantCombinationsToNewFormat(),
           inStock: formData.inStock,
           stock: effectiveStock,
         };
@@ -1102,15 +1039,8 @@ export function ProductFormWizard({
           colors: createInput.colors,
           sizes: createInput.sizes,
           variants: createInput.variants,
-          // variantCombinations: createInput.variantCombinations,
           stock: createInput.stock,
         });
-
-        console.log('🔍 Raw variantCombinations before conversion:', variantCombinations);
-        console.log('🔍 Colors array:', colors);
-        console.log('🔍 Sizes array:', sizes);
-        console.log('🔍 Custom variants array:', customVariants);
-        console.log('🔍 Converted variantCombinations:', convertVariantCombinationsToNewFormat());
 
         const { data } = await createProductWithUrls({
           variables: { input: createInput },
@@ -1122,16 +1052,11 @@ export function ProductFormWizard({
           console.log('🎉 Product created successfully!');
           console.log('📋 Backend response variants:', data.createProductWithUrls.variants);
 
-          // Save variant combinations after product creation (use same approach as UPDATE)
           if (variantCombinations.length > 0) {
-            await saveVariantCombinations(
-              newProductId,
-              undefined // No variants returned from backend, will refetch
-            );
+            await saveVariantCombinations(newProductId, undefined);
           }
 
           toast.success('¡Producto creado exitosamente! 🎉');
-          // Reset form
           setFormData({
             name: '',
             title: '',
@@ -1149,7 +1074,7 @@ export function ProductFormWizard({
           setVariantCombinations([]);
           setCompletedSteps(new Set());
           setCurrentStep('basic');
-          onCancel(); // Close the form
+          onCancel();
         } else {
           throw new Error('No se pudo crear el producto');
         }
@@ -1171,7 +1096,6 @@ export function ProductFormWizard({
     }
   };
 
-  // Function to generate AI description with typewriter effect
   const generateAIDescription = async () => {
     if (!formData.name || !formData.title) {
       toast.error('Por favor completa el nombre y título del producto primero');
@@ -1208,14 +1132,12 @@ export function ProductFormWizard({
       const result = await response.json();
 
       if (result.description) {
-        // Clear the current description first
         setFormData((prev) => ({ ...prev, description: '' }));
 
         toast.success('¡Descripción generada exitosamente! ✨', {
           id: 'ai-description',
         });
 
-        // Typewriter effect implementation
         const fullDescription = result.description;
         const words = fullDescription.split(' ');
         let currentText = '';
@@ -1229,7 +1151,7 @@ export function ProductFormWizard({
           } else {
             clearInterval(typeWriterInterval);
           }
-        }, 80); // Velocidad de escritura: 80ms por palabra (ajustable)
+        }, 80);
       } else {
         throw new Error('No se recibió descripción del servidor');
       }
@@ -1241,6 +1163,32 @@ export function ProductFormWizard({
     }
   };
 
+  // Transform backend categories to structured format with parent/children relationships
+  const transformedCategories = categoriesData?.categoriesByStore
+    ? categoriesData.categoriesByStore.map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description,
+        isActive: cat.isActive,
+        order: cat.order,
+        parentId: cat.parentId,
+        parent: cat.parent,
+        children: cat.children,
+      }))
+    : [];
+  const handleSelectCategory = (catId: any, catName: any, catSlug: any, isParent = false) => {
+    if (!categories.find((c) => c.id === catId)) {
+      setCategories([...categories, { id: catId, name: catName, slug: catSlug }]);
+    }
+    if (isParent) setIsOpen(false);
+  };
+
+  const handleRemoveCategory = (catId: any) => {
+    setCategories(categories.filter((c) => c.id !== catId));
+  };
+
+  const selectedCategoryNames = categories.map((c) => c.name).join(', ');
   const renderStep = () => {
     switch (currentStep) {
       case 'basic':
@@ -1307,7 +1255,6 @@ export function ProductFormWizard({
                   value={formData.price === 0 ? '' : formData.price}
                   onChange={(e) => {
                     const value = e.target.value;
-                    // Allow empty string, otherwise parse as number
                     if (value === '') {
                       handleInputChange('price', 0);
                     } else {
@@ -1370,18 +1317,119 @@ export function ProductFormWizard({
             </div>
           </div>
         );
+
       case 'categories':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 w-full ">
             <div className="text-center mb-8">
-              <Tag className="w-12 h-12 text-orange-400 mx-auto mb-4" />
+              <Tag className="w-12 h-12 text-fourth-base mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-white">Categorías</h3>
               <p className="text-gray-400 mt-2">
                 Clasifica tu producto para que sea fácil de encontrar
               </p>
             </div>
 
-            <CategorySelector selectedCategories={categories} onChange={setCategories} />
+            {transformedCategories && transformedCategories.length > 0 ? (
+              <div className="space-y-8">
+                {/* Custom Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="w-full bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 hover:border-fourth-400 text-gray-300 rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-fourth-400 transition-all duration-200 flex items-center justify-between group"
+                  >
+                    <span className="text-left">
+                      {categories.length > 0
+                        ? `${categories.length} categoría${categories.length > 1 ? 's' : ''} seleccionada${categories.length > 1 ? 's' : ''}`
+                        : 'Selecciona una categoría'}
+                    </span>
+                    <ChevronDown
+                      className={`w-5 h-5 text-fourth-base transition-transform duration-200 ${
+                        isOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-fourth-400/50 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
+                      {transformedCategories.map((category: any) => (
+                        <div key={category.id}>
+                          {/* Parent Category */}
+                          <button
+                            onClick={() =>
+                              handleSelectCategory(category.id, category.name, category.slug, true)
+                            }
+                            className={`w-full text-left px-4 py-3 hover:bg-fourth-400/10 text-white font-medium transition-colors border-b border-gray-700 last:border-b-0 flex items-center gap-3 ${
+                              categories.some((c) => c.id === category.id)
+                                ? 'bg-fourth-400/20 text-fourth-200'
+                                : ''
+                            }`}
+                          >
+                            <span className="text-fourth-base">◆</span>
+                            <span>{category.name}</span>
+                            {categories.some((c) => c.id === category.id) && (
+                              <span className="ml-auto text-green-400 font-semibold">✓</span>
+                            )}
+                          </button>
+
+                          {/* Child Categories */}
+                          {category.children &&
+                            category.children.map((child: any) => (
+                              <button
+                                key={child.id}
+                                onClick={() =>
+                                  handleSelectCategory(child.id, child.name, child.slug)
+                                }
+                                className={`w-full text-left px-8 py-2.5 hover:bg-gray-700 text-gray-300 hover:text-fourth-base transition-colors text-sm flex items-center ${
+                                  categories.some((c) => c.id === child.id)
+                                    ? 'bg-gray-700 text-fourth-200'
+                                    : ''
+                                }`}
+                              >
+                                <span className="mr-2">└─</span>
+                                <span className="truncate">{child.name}</span>
+                                {categories.some((c) => c.id === child.id) && (
+                                  <span className="ml-auto text-green-400">✓</span>
+                                )}
+                              </button>
+                            ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Categories Tags */}
+                {categories.length > 0 && (
+                  <div className="bg-gradient-to-r from-fourth-900/30 to-fourth-800/20 border border-fourth-600/50 p-4 rounded-lg backdrop-blur-sm">
+                    <p className="text-fourth-300 text-sm font-medium mb-3">
+                      Categorías seleccionadas: {categories.length}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="px-3 py-1.5 bg-fourth-400 text-white text-xs rounded-full flex items-center gap-2 hover:bg-fourth-600 transition-colors group"
+                        >
+                          {cat.name}
+                          <button
+                            onClick={() => handleRemoveCategory(cat.id)}
+                            className="opacity-0 text-white group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg text-center">
+                <p className="text-gray-400">No hay categorías disponibles</p>
+              </div>
+            )}
+
             {errors.categories && <p className="text-red-400 text-sm">{errors.categories}</p>}
           </div>
         );
@@ -1395,7 +1443,6 @@ export function ProductFormWizard({
               <p className="text-gray-400 mt-2">Sube fotos de tu producto y define sus variantes</p>
             </div>
 
-            {/* Images Section */}
             <div className="space-y-6">
               <div>
                 <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
@@ -1418,7 +1465,6 @@ export function ProductFormWizard({
                 </div>
               </div>
 
-              {/* Variants Section */}
               <div className="border-t border-gray-700 pt-8">
                 <h4 className="text-lg font-semibold text-white mb-6 flex items-center">
                   <Palette className="w-5 h-5 mr-2" />
@@ -1427,7 +1473,6 @@ export function ProductFormWizard({
                 </h4>
 
                 <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
-                  {/* Colors */}
                   <div>
                     <h5 className="text-md font-medium text-gray-300 mb-4 flex items-center">
                       <Palette className="w-4 h-4 mr-2" />
@@ -1436,7 +1481,6 @@ export function ProductFormWizard({
                     <ColorPicker colors={colors} onChange={setColors} />
                   </div>
 
-                  {/* Sizes */}
                   <div>
                     <h5 className="text-md font-medium text-gray-300 mb-4 flex items-center">
                       <Ruler className="w-4 h-4 mr-2" />
@@ -1445,18 +1489,15 @@ export function ProductFormWizard({
                     <SizeSelector sizes={sizes} onChange={setSizes} />
                   </div>
 
-                  {/* Custom Variants */}
                   <div>
                     <CustomVariantSelector variants={customVariants} onChange={setCustomVariants} />
                   </div>
 
-                  {/* Variant Combinations */}
                   <div className="mt-8 pt-8 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-medium text-white">Combinaciones de Variantes</h3>
                     </div>
 
-                    {/* Stock Calculation Info */}
                     <div className="bg-amber-900 border border-amber-800 p-4 rounded-xl mb-6">
                       <div className="flex items-start">
                         <Info className="w-5 h-5 text-amber-400 mt-0.5 mr-3 flex-shrink-0" />
@@ -1492,7 +1533,7 @@ export function ProductFormWizard({
                         onCombinationsChange={setVariantCombinations}
                         existingCombinations={variantCombinations}
                         isEditMode={!!product?.id}
-                        basePrice={formData.price} // Pass the base price from the form
+                        basePrice={formData.price}
                       />
                     )}
                   </div>
@@ -1507,7 +1548,6 @@ export function ProductFormWizard({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-300">Descripción *</label>
-              {/* AI Generate Button */}
               <button
                 type="button"
                 onClick={generateAIDescription}
@@ -1550,7 +1590,6 @@ export function ProductFormWizard({
             </div>
 
             <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-              {/* Product preview */}
               <div className="p-6 border-b border-gray-700">
                 <div className="flex items-start space-x-4">
                   {images.length > 0 && (
@@ -1574,7 +1613,6 @@ export function ProductFormWizard({
                 </div>
               </div>
 
-              {/* Details */}
               <div className="p-6 space-y-4">
                 <div>
                   <h5 className="font-medium text-white">Descripción:</h5>
@@ -1688,7 +1726,6 @@ export function ProductFormWizard({
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       <div className="bg-gray-800 border border-gray-700 rounded-xl shadow-lg overflow-hidden">
-        {/* Header */}
         <div className="border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-700 p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -1715,13 +1752,11 @@ export function ProductFormWizard({
           </div>
         </div>
 
-        {/* Progress Steps */}
         <div className="p-4 md:p-6 border-b border-gray-700 bg-gray-800">
           <div className="flex items-center justify-between overflow-x-auto gap-2 md:gap-4">
             {steps.map((step, index) => {
               const isActive = step.id === currentStep;
               const isCompleted = completedSteps.has(step.id) || isStepCompleted(step.id);
-              // Minimal change: allow all steps to be clickable if editing (product exists)
               const isClickable =
                 !!product ||
                 index === 0 ||
@@ -1753,7 +1788,7 @@ export function ProductFormWizard({
                   </div>
                   <div className="mt-1 md:mt-2 text-center flex flex-col items-center w-full">
                     <p
-                      className={`text-xs md:text-sm font-medium hidden  md:block ${
+                      className={`text-xs md:text-sm font-medium hidden md:block ${
                         isActive ? 'text-white' : isCompleted ? 'text-green-400' : 'text-gray-500'
                       }`}
                     >
@@ -1764,7 +1799,6 @@ export function ProductFormWizard({
                     </p>
                   </div>
 
-                  {/* Connection line */}
                   {index < steps.length - 1 && (
                     <div
                       className="hidden md:block absolute h-0.5 bg-gray-600 -z-10"
@@ -1786,12 +1820,10 @@ export function ProductFormWizard({
           </div>
         </div>
 
-        {/* Step Content */}
         <div className="p-4 md:p-8 bg-gray-900">
           <div className="transition-all duration-300 ease-in-out">{renderStep()}</div>
         </div>
 
-        {/* Navigation */}
         <div className="border-t border-gray-700 p-4 md:p-6 bg-gray-800">
           <div className="flex items-center justify-between">
             <button
@@ -1869,7 +1901,6 @@ export function ProductFormWizard({
         </div>
       </div>
 
-      {/* Submit Error */}
       {errors.submit && (
         <div className="mt-4 bg-red-900 border border-red-800 rounded-lg p-4">
           <p className="text-red-400 text-sm">{errors.submit}</p>

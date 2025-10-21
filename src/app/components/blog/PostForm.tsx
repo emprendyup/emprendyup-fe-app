@@ -303,7 +303,7 @@ export default function PostForm({ initialData }: PostFormProps) {
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    tags: e.target.value
+                    tagIds: e.target.value
                       .split(',')
                       .map((s) => s.trim())
                       .filter(Boolean),

@@ -18,9 +18,7 @@ import {
   FileText,
   Loader,
   CreditCard,
-  Wrench,
   Package,
-  Wallet,
   Star,
   MessageCircle,
   BookOpen,
@@ -28,7 +26,7 @@ import {
   List,
 } from 'lucide-react';
 import Image from 'next/image';
-import { useDashboardUIStore, useSessionStore } from '@/lib/store/dashboard';
+import { useSessionStore } from '@/lib/store/dashboard';
 import { getCurrentUser } from '@/lib/utils/rbac';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
@@ -62,15 +60,6 @@ const adminNavigationGroups = [
     ],
   },
   {
-    name: 'Pagos',
-    icon: CreditCard,
-    items: [
-      { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
-      { name: 'Wallets', href: '/dashboard/wallet', icon: Wallet },
-      { name: 'Configuración', href: '/dashboard/config', icon: Wrench },
-    ],
-  },
-  {
     name: 'Otros',
     icon: Gift,
     items: [
@@ -79,6 +68,12 @@ const adminNavigationGroups = [
       { name: 'Mi suscripción', href: '/dashboard/plans', icon: Layers },
       { name: 'Estadísticas', href: '/dashboard/insights', icon: BarChart3 },
     ],
+  },
+  {
+    name: 'Pagos',
+    icon: CreditCard,
+    href: '/dashboard/payments',
+    isSingle: true,
   },
 ];
 
@@ -100,20 +95,18 @@ const storeAdminNavigationGroups = [
     items: [{ name: 'Usuarios por tienda', href: '/dashboard/usersbyStore', icon: Users }],
   },
   {
-    name: 'Pagos',
-    icon: CreditCard,
-    items: [
-      { name: 'Pagos', href: '/dashboard/payments', icon: CreditCard },
-      { name: 'Configuración', href: '/dashboard/config', icon: Wrench },
-    ],
-  },
-  {
     name: 'Otros',
     icon: Gift,
     items: [
       { name: 'Bonos', href: '/dashboard/bonuses', icon: Gift },
       { name: 'Mi suscripción', href: '/dashboard/plans', icon: Layers },
     ],
+  },
+  {
+    name: 'Pagos',
+    icon: CreditCard,
+    href: '/dashboard/payments',
+    isSingle: true,
   },
 ];
 
@@ -244,9 +237,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
             {navigationGroups.map((group) => {
               const isGroupExpanded = expandedGroups[group.name];
-              const hasActiveItem = group.items.some(
-                (item) => pathname === item.href || pathname.startsWith(item.href + '/')
-              );
+              const hasActiveItem = group.items
+                ? group.items.some(
+                    (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+                  )
+                : (group as any).href &&
+                  (pathname === (group as any).href ||
+                    pathname.startsWith((group as any).href + '/'));
+
+              // Si es un item único (single), renderizar como enlace directo
+              if ((group as any).isSingle && (group as any).href) {
+                const isActive =
+                  pathname === (group as any).href ||
+                  pathname.startsWith((group as any).href + '/');
+                return (
+                  <Link
+                    key={group.name}
+                    href={(group as any).href}
+                    className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                      isActive
+                        ? 'bg-fourth-base/10 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <group.icon
+                      className={`mr-0 pl-3 md:mr-3 h-8 w-8 flex-shrink-0 ${
+                        isActive
+                          ? 'text-black dark:text-white'
+                          : 'text-gray-400 group-hover:text-gray-500'
+                      }`}
+                    />
+                    {!collapsed && <span className="truncate flex-1 text-left">{group.name}</span>}
+                  </Link>
+                );
+              }
 
               return (
                 <div key={group.name}>
@@ -279,7 +303,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </button>
 
                   {/* Items del grupo (solo si no está colapsado y el grupo está expandido) */}
-                  {!collapsed && isGroupExpanded && (
+                  {!collapsed && isGroupExpanded && group.items && (
                     <div className="ml-6 mt-1 space-y-1">
                       {group.items.map((item) => {
                         const isActive =
@@ -390,9 +414,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
               {navigationGroups.map((group) => {
                 const isGroupExpanded = expandedGroups[group.name];
-                const hasActiveItem = group.items.some(
-                  (item) => pathname === item.href || pathname.startsWith(item.href + '/')
-                );
+                const hasActiveItem = group.items
+                  ? group.items.some(
+                      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+                    )
+                  : (group as any).href &&
+                    (pathname === (group as any).href ||
+                      pathname.startsWith((group as any).href + '/'));
+
+                // Si es un item único (single), renderizar como enlace directo
+                if ((group as any).isSingle && (group as any).href) {
+                  const isActive =
+                    pathname === (group as any).href ||
+                    pathname.startsWith((group as any).href + '/');
+                  return (
+                    <Link
+                      key={group.name}
+                      href={(group as any).href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-fourth-base text-black'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <group.icon
+                        className={`mr-3 h-8 w-8 flex-shrink-0 ${
+                          isActive
+                            ? 'text-black dark:text-white'
+                            : 'text-gray-400 group-hover:text-gray-500'
+                        }`}
+                      />
+                      <span className="truncate flex-1 text-left">{group.name}</span>
+                    </Link>
+                  );
+                }
 
                 return (
                   <div key={group.name}>
@@ -420,32 +476,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </button>
 
                     {isGroupExpanded && (
-                      <div className="ml-4 mt-1 space-y-1">
-                        {group.items.map((item) => {
-                          const isActive =
-                            pathname === item.href || pathname.startsWith(item.href + '/');
-                          return (
-                            <Link
-                              key={item.name}
-                              href={item.href}
-                              onClick={() => setMobileMenuOpen(false)}
-                              className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                                isActive
-                                  ? 'bg-fourth-base text-black'
-                                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                              }`}
-                            >
-                              <item.icon
-                                className={`mr-3 h-5 w-5 ${
+                      <div className="ml-6 mt-1 space-y-1">
+                        {group.items &&
+                          group.items.map((item) => {
+                            const isActive =
+                              pathname === item.href || pathname.startsWith(item.href + '/');
+                            return (
+                              <Link
+                                key={item.name}
+                                href={item.href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
                                   isActive
-                                    ? 'text-black'
-                                    : 'text-gray-400 group-hover:text-gray-500'
+                                    ? 'bg-fourth-base text-black'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
-                              />
-                              <span className="truncate">{item.name}</span>
-                            </Link>
-                          );
-                        })}
+                              >
+                                <item.icon
+                                  className={`mr-3 h-5 w-5 ${
+                                    isActive
+                                      ? 'text-black'
+                                      : 'text-gray-400 group-hover:text-gray-500'
+                                  }`}
+                                />
+                                <span className="truncate">{item.name}</span>
+                              </Link>
+                            );
+                          })}
                       </div>
                     )}
                   </div>

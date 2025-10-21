@@ -23,6 +23,7 @@ import DetailsStore from '@/app/components/Detalles';
 import FileUpload from '@/app/components/FileUpload';
 import toast from 'react-hot-toast';
 import RichTextEditor from '@/app/components/blog/RichTextEditor';
+import PaymentConfiguration from '@/app/components/PaymentConfiguration';
 
 const GET_STORE_CONFIG = gql`
   query GetStore($storeId: String!) {
@@ -925,116 +926,7 @@ export default function StoreSettingsPage() {
                     </h2>
 
                     <div className="space-y-6">
-                      {/* MercadoPago */}
-                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white">MercadoPago</h4>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name="mercadoPagoEnabled"
-                              checked={formData.mercadoPagoEnabled || false}
-                              onChange={(e) =>
-                                setFormData((prev: any) => ({
-                                  ...prev,
-                                  mercadoPagoEnabled: e.target.checked,
-                                }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
-                        </div>
-                        {formData.mercadoPagoEnabled && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Clave Pública
-                            </label>
-                            <input
-                              type="text"
-                              name="mercadoPagoPublicKey"
-                              value={formData.mercadoPagoPublicKey || ''}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                              placeholder="TEST-..."
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Wompi */}
-                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white">Wompi</h4>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name="wompiEnabled"
-                              checked={formData.wompiEnabled || false}
-                              onChange={(e) =>
-                                setFormData((prev: any) => ({
-                                  ...prev,
-                                  wompiEnabled: e.target.checked,
-                                }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
-                        </div>
-                        {formData.wompiEnabled && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Clave Pública
-                            </label>
-                            <input
-                              type="text"
-                              name="wompiPublicKey"
-                              value={formData.wompiPublicKey || ''}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                              placeholder="pub_test_..."
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* ePayco */}
-                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white">ePayco</h4>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name="ePaycoEnabled"
-                              checked={formData.ePaycoEnabled || false}
-                              onChange={(e) =>
-                                setFormData((prev: any) => ({
-                                  ...prev,
-                                  ePaycoEnabled: e.target.checked,
-                                }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
-                        </div>
-                        {formData.ePaycoEnabled && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Clave Pública
-                            </label>
-                            <input
-                              type="text"
-                              name="ePaycoPublicKey"
-                              value={formData.ePaycoPublicKey || ''}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                              placeholder="test_..."
-                            />
-                          </div>
-                        )}
-                      </div>
+                      <PaymentConfiguration />
                     </div>
                   </div>
                 </div>

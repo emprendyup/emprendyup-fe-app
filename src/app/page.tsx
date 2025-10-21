@@ -85,7 +85,10 @@ function LoginForm() {
       localStorage.setItem('accessToken', data.login.access_token);
       localStorage.setItem('user', JSON.stringify(data.login.user));
       // Conditional redirect
-      if (data.login.user.storeId) {
+      if (data.login.user.role === 'ADMIN') {
+        debugger;
+        router.push('/dashboard/insights');
+      } else if (data.login.user.storeId) {
         router.push('/dashboard/insights');
       } else {
         router.push('/dashboard/store/new');

@@ -7,12 +7,9 @@ import { blogApi, BlogPost } from '@/lib/blog/blog.api';
 import { generateSlug } from '@/lib/blog/slug';
 import { BlogPostSchema } from '@/lib/blog/validation';
 import RichTextEditor, { RichTextEditorRef } from './RichTextEditor';
-import Image from 'next/image';
-import DOMPurify from 'dompurify';
 import useDebounce from '../../../lib/hooks/useDebounce';
-import { Upload, X, Eye, EyeOff, Save, Send, ArrowLeft, ImageIcon, Plus } from 'lucide-react';
+import { X, Save, Send, ArrowLeft, Plus } from 'lucide-react';
 import { getUserFromLocalStorage } from '@/lib/utils/localAuth';
-import { SlUmbrella } from 'react-icons/sl';
 import FileUpload from '../FileUpload';
 
 interface PostFormProps {
@@ -28,6 +25,7 @@ export default function PostForm({ initialData }: PostFormProps) {
     coverImageUrl: '',
     blogCategoryId: '',
     tagIds: [] as string[],
+    relatedPostIds: [] as string[],
   });
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
@@ -35,14 +33,11 @@ export default function PostForm({ initialData }: PostFormProps) {
   const [contentHtml, setContentHtml] = useState<string>(initialData?.content || '');
   const [relatedQuery, setRelatedQuery] = useState('');
   const [relatedSuggestions, setRelatedSuggestions] = useState<BlogPost[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
-  const [restored, setRestored] = useState(false);
-  const autosaveTimer = useRef<number | null>(null);
+  const [selectedRelatedPosts, setSelectedRelatedPosts] = useState<BlogPost[]>([]);
   const debouncedRelated = useDebounce(relatedQuery, 300);
   const router = useRouter();
   const isEdit = Boolean(initialData?.id);
   const user = getUserFromLocalStorage();
-  const autosaveKey = `blog-draft:${initialData?.id ?? 'new'}`;
 
   const CREATE_POST = gql`
     mutation CreatePost($input: CreatePostInput!) {
@@ -59,6 +54,11 @@ export default function PostForm({ initialData }: PostFormProps) {
           tag {
             id
           }
+        }
+        relatedPosts {
+          id
+          title
+          slug
         }
         slug
         creator {
@@ -87,6 +87,11 @@ export default function PostForm({ initialData }: PostFormProps) {
           tag {
             id
           }
+        }
+        relatedPosts {
+          id
+          title
+          slug
         }
       }
     }
@@ -124,7 +129,14 @@ export default function PostForm({ initialData }: PostFormProps) {
         coverImageUrl: initialData.coverImageUrl || '',
         blogCategoryId: initialData.blogCategory?.name || '',
         tagIds: initialData.tags?.map((t) => t.tag.id) || [],
+        relatedPostIds: (initialData as any).relatedPosts?.map((p: any) => p.id || p) || [],
       });
+
+      // Cargar información completa de posts relacionados para edición
+      if ((initialData as any).relatedPosts?.length > 0) {
+        const relatedPosts = (initialData as any).relatedPosts.filter((p: any) => p.id && p.title);
+        setSelectedRelatedPosts(relatedPosts);
+      }
     }
   }, [initialData]);
 
@@ -151,12 +163,16 @@ export default function PostForm({ initialData }: PostFormProps) {
     (async () => {
       try {
         const res = await blogApi.searchPosts(debouncedRelated);
-        setRelatedSuggestions(res || []);
+        // Excluir el post actual y los ya relacionados
+        const filtered = (res || []).filter(
+          (post) => post.id !== initialData?.id && !formData.relatedPostIds?.includes(post.id!)
+        );
+        setRelatedSuggestions(filtered);
       } catch (e) {
         setRelatedSuggestions([]);
       }
     })();
-  }, [debouncedRelated]);
+  }, [debouncedRelated, initialData?.id, formData.relatedPostIds]);
 
   const handleSubmit = async (status: 'DRAFT' | 'PUBLISHED') => {
     try {
@@ -276,6 +292,24 @@ export default function PostForm({ initialData }: PostFormProps) {
             </div>
           </div>
 
+          {/* Excerpt */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-300">
+              Resumen del artículo
+            </label>
+            <textarea
+              name="excerpt"
+              value={formData.excerpt || ''}
+              onChange={handleChange}
+              placeholder="Escribe un breve resumen del artículo..."
+              rows={3}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+            />
+            <p className="text-xs text-gray-500">
+              Un resumen atractivo que aparecerá en las vistas previas
+            </p>
+          </div>
+
           {/* Category and Tags */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Category */}
@@ -317,7 +351,7 @@ export default function PostForm({ initialData }: PostFormProps) {
           </div>
 
           {/* Related posts */}
-          {/* <div className="space-y-2">
+          <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-300">
               Artículos relacionados
             </label>
@@ -341,12 +375,14 @@ export default function PostForm({ initialData }: PostFormProps) {
                       <button
                         type="button"
                         onClick={() => {
+                          const newPost = post;
                           setFormData((prev) => ({
                             ...prev,
-                            relatedPosts: Array.from(
-                              new Set([...(prev.relatedPosts || []), post.id!])
+                            relatedPostIds: Array.from(
+                              new Set([...(prev.relatedPostIds || []), post.id!])
                             ),
                           }));
+                          setSelectedRelatedPosts((prev) => [...prev, newPost]);
                           setRelatedQuery('');
                         }}
                         className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
@@ -360,20 +396,23 @@ export default function PostForm({ initialData }: PostFormProps) {
               )}
             </div>
 
-            {formData.relatedPosts && formData.relatedPosts.length > 0 && (
+            {selectedRelatedPosts && selectedRelatedPosts.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
-                {formData.relatedPosts.map((id, index) => (
+                {selectedRelatedPosts.map((post) => (
                   <span
-                    key={id}
+                    key={post.id}
                     className="flex items-center gap-2 px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm"
                   >
-                    Artículo relacionado {index + 1}
+                    {post.title}
                     <button
                       onClick={() => {
                         setFormData((prev) => ({
                           ...prev,
-                          relatedPosts: prev.relatedPosts?.filter((postId) => postId !== id),
+                          relatedPostIds: prev.relatedPostIds?.filter(
+                            (postId) => postId !== post.id
+                          ),
                         }));
+                        setSelectedRelatedPosts((prev) => prev.filter((p) => p.id !== post.id));
                       }}
                       className="text-gray-400 hover:text-red-400 transition-colors"
                     >
@@ -383,7 +422,7 @@ export default function PostForm({ initialData }: PostFormProps) {
                 ))}
               </div>
             )}
-          </div> */}
+          </div>
 
           {/* Content (RichTextEditor) */}
           <div className="space-y-2">

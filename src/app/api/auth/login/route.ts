@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     // Get backend URL
-    const backendUrl = process.env.AUTH_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!backendUrl) {
       return NextResponse.json({ error: 'Backend not configured' }, { status: 500 });
     }
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     });
 
     const data = await response.json();
+    console.log('🚀 ~ POST ~ data:', data);
 
     if (!response.ok) {
       console.error('Backend login failed:', data);

@@ -64,37 +64,65 @@ export async function GET(req: Request) {
     const profile = await profileResponse.json();
 
     // Register or login user with your backend
-    const base = process.env.AUTH_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+    const base = process.env.NEXT_PUBLIC_API_URL;
     if (!base) {
       return NextResponse.redirect(new URL('/registrarse?error=backend_not_configured', req.url));
     }
 
     // Try to register/login with Google profile
     const authUrl = `${base.replace(/\/$/, '')}/auth/google`;
+
+    console.log('🔍 Sending to backend:', {
+      googleId: profile.id,
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture || null,
+      accessToken: accessToken,
+    });
+
     const authResponse = await fetch(authUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
       body: JSON.stringify({
         googleId: profile.id,
         email: profile.email,
         name: profile.name,
-        picture: profile.picture,
+        picture: profile.picture || null,
         accessToken: accessToken,
       }),
     });
 
-    const authData = await authResponse.json().catch(() => ({}));
+    const authData = await authResponse.json().catch((parseError) => {
+      console.error('❌ Failed to parse backend response:', parseError);
+      return {};
+    });
+
+    // Add detailed logging for debugging
+    console.log('🔍 Backend Response Status:', authResponse.status);
+    console.log('🔍 Backend Response Headers:', Object.fromEntries(authResponse.headers.entries()));
+    console.log('🔍 Backend Response Data:', JSON.stringify(authData, null, 2));
 
     if (!authResponse.ok) {
-      console.error('Backend auth failed:', authData);
-      return NextResponse.redirect(new URL('/registrarse?error=backend_auth_failed', req.url));
+      console.error('Backend auth failed with status:', authResponse.status);
+      console.error('Backend auth error details:', authData);
+      return NextResponse.redirect(
+        new URL(`/registrarse?error=backend_auth_failed&status=${authResponse.status}`, req.url)
+      );
     }
 
     // Set auth cookie and redirect to success page
     const token = authData?.access_token || authData?.accessToken || authData?.token;
+    const userData = authData?.user;
+
+    // Debug the extracted values
+    console.log('🔍 Extracted token:', token);
+    console.log('🔍 Extracted userData:', userData);
 
     // Parse state to get redirect URL
-    let redirectTo = '/dashboard/insights'; // Default redirect
+    let redirectTo = '/dashboard'; // Default redirect
     try {
       if (state) {
         const stateData = JSON.parse(decodeURIComponent(state));
@@ -104,7 +132,14 @@ export async function GET(req: Request) {
       console.warn('Failed to parse state parameter:', e);
     }
 
-    const response = NextResponse.redirect(new URL(redirectTo, req.url));
+    // For production, we'll create a success page that handles localStorage
+    // For now, let's use query parameters to pass the data
+    const redirectUrl = new URL('/auth/success', req.url);
+    redirectUrl.searchParams.set('token', token || '');
+    redirectUrl.searchParams.set('user', JSON.stringify(userData || {}));
+    redirectUrl.searchParams.set('redirectTo', redirectTo);
+
+    const response = NextResponse.redirect(redirectUrl);
 
     if (token) {
       response.cookies.set('auth_token', token, {

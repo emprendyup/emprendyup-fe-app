@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { cartService, Cart as CartType, CartItem } from '@/lib/Cart';
 import { ChevronDown, ChevronRight, Link, Shield, ShieldCheck } from 'lucide-react';
 import { gql, useQuery, useMutation } from '@apollo/client';
-import { useSession } from 'next-auth/react';
+// import { useSession } from 'next-auth/react'; // Removed - using custom auth
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import crypto from 'crypto';
@@ -284,13 +284,22 @@ export default function Order() {
     shipping: 0,
   });
   const router = useRouter();
-  const { data: session } = useSession();
+  // const { data: session } = useSession(); // Removed - using custom auth
+  const [user, setUser] = useState<any>(null);
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [isSubmittingAddress, setIsSubmittingAddress] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [userData, setUserData] = useState<any>({});
+
+  // Load user from localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   // Payment hooks
   const { createWompiPayment, loading: paymentLoading, error: paymentError } = useWompiPayment();
@@ -397,7 +406,7 @@ export default function Order() {
     e.preventDefault();
 
     // Check if user is authenticated
-    if (!session && !userData?.id) {
+    if (!user && !userData?.id) {
       alert('Debes iniciar sesión para guardar la dirección');
       return;
     }
@@ -726,8 +735,8 @@ export default function Order() {
       expirationTime,
       taxVatInCents: formatAmountInCents(cart.tax),
       taxConsumptionInCents: 0, // Colombia doesn't typically use consumption tax for most products
-      customerEmail: session?.user?.email || '',
-      customerFullName: session?.user?.name || selectedAddress?.name || '',
+      customerEmail: user?.email || '',
+      customerFullName: user?.name || selectedAddress?.name || '',
       customerPhoneNumber: selectedAddress?.phone || '',
       customerLegalId: '', // This would need to be collected separately
       customerLegalIdType: 'CC', // Default to Cédula de Ciudadanía
@@ -742,7 +751,7 @@ export default function Order() {
   };
 
   // Show login prompt if not authenticated
-  if (!session && !userData?.id) {
+  if (!user && !userData?.id) {
     return (
       <div className="min-h-screen bg-gray-900 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

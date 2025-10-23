@@ -100,11 +100,6 @@ export async function GET(req: Request) {
       return {};
     });
 
-    // Add detailed logging for debugging
-    console.log('🔍 Backend Response Status:', authResponse.status);
-    console.log('🔍 Backend Response Headers:', Object.fromEntries(authResponse.headers.entries()));
-    console.log('🔍 Backend Response Data:', JSON.stringify(authData, null, 2));
-
     if (!authResponse.ok) {
       console.error('Backend auth failed with status:', authResponse.status);
       console.error('Backend auth error details:', authData);
@@ -121,15 +116,25 @@ export async function GET(req: Request) {
     console.log('🔍 Extracted token:', token);
     console.log('🔍 Extracted userData:', userData);
 
-    // Parse state to get redirect URL
-    let redirectTo = '/dashboard'; // Default redirect
+    // Parse state to get redirect URL and determine final destination based on user store
+    let baseRedirectTo = '/dashboard/insights'; // Default redirect from state
     try {
       if (state) {
         const stateData = JSON.parse(decodeURIComponent(state));
-        redirectTo = stateData.redirectTo || redirectTo;
+        baseRedirectTo = stateData.redirectTo || baseRedirectTo;
       }
     } catch (e) {
       console.warn('Failed to parse state parameter:', e);
+    }
+
+    // Determine final redirect based on whether user has a store
+    let finalRedirectTo;
+    if (userData && userData.storeId) {
+      // User has a store, redirect to insights dashboard
+      finalRedirectTo = '/dashboard/insights';
+    } else {
+      // User doesn't have a store, redirect to store creation
+      finalRedirectTo = '/dashboard/store/new';
     }
 
     // For production, we'll create a success page that handles localStorage
@@ -137,7 +142,7 @@ export async function GET(req: Request) {
     const redirectUrl = new URL('/auth/success', req.url);
     redirectUrl.searchParams.set('token', token || '');
     redirectUrl.searchParams.set('user', JSON.stringify(userData || {}));
-    redirectUrl.searchParams.set('redirectTo', redirectTo);
+    redirectUrl.searchParams.set('redirectTo', finalRedirectTo);
 
     const response = NextResponse.redirect(redirectUrl);
 

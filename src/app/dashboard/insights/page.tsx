@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { gql, useQuery } from '@apollo/client';
 import { Users, ShoppingCart, DollarSign, TrendingUp, Package } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import KPICard from '../components/KPICard';
 import LineChart from '../components/LineChart';
 import BarChart from '../components/BarChart';
@@ -94,22 +95,64 @@ const mockChartData: ChartData = {
 };
 
 export default function InsightsPage() {
+  const router = useRouter();
   const [kpis, setKpis] = useState<KPI | null>(null);
   const [chartData, setChartData] = useState<ChartData | null>(null);
+  const [user, setUser] = useState<any>(null);
   const currentStore = useSessionStore((s: any) => s.currentStore);
-  const storeId = currentStore?.storeId;
+
+  // Load user data from localStorage
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      console.log('🚀 ~ InsightsPage ~ userData from localStorage:', parsedUser);
+    }
+  }, []);
+
+  // Get storeId from either the session store or user data
+  const storeId = currentStore?.storeId || user?.storeId;
 
   // Queries para las KPI cards
-  const { data: totalProductsData, loading: loadingProducts } = useQuery(TOTAL_PRODUCTS_QUERY);
-  const { data: activeUsersData, loading: loadingActiveUsers } = useQuery(ACTIVE_USERS_QUERY);
-  const { data: monthlySalesData, loading: loadingMonthlySales } = useQuery(MONTHLY_SALES_QUERY);
-  const { data: conversionRateData, loading: loadingConversionRate } =
-    useQuery(CONVERSION_RATE_QUERY);
-  const userData = JSON.parse(localStorage.getItem('user') || '{}');
-  const { data, loading: loadingLeads } = useQuery(CONTACT_LEADS_BY_STORE, {
-    variables: { storeId: userData?.storeId || '' },
+  const {
+    data: totalProductsData,
+    loading: loadingProducts,
+    error: errorProducts,
+  } = useQuery(TOTAL_PRODUCTS_QUERY);
+  const {
+    data: activeUsersData,
+    loading: loadingActiveUsers,
+    error: errorActiveUsers,
+  } = useQuery(ACTIVE_USERS_QUERY);
+  const {
+    data: monthlySalesData,
+    loading: loadingMonthlySales,
+    error: errorMonthlySales,
+  } = useQuery(MONTHLY_SALES_QUERY);
+  const {
+    data: conversionRateData,
+    loading: loadingConversionRate,
+    error: errorConversionRate,
+  } = useQuery(CONVERSION_RATE_QUERY);
+
+  const {
+    data,
+    loading: loadingLeads,
+    error: errorLeads,
+  } = useQuery(CONTACT_LEADS_BY_STORE, {
+    variables: { storeId: storeId || '' },
     skip: !storeId,
   });
+
+  // Log any GraphQL errors
+  useEffect(() => {
+    if (errorProducts) console.error('Products query error:', errorProducts);
+    if (errorActiveUsers) console.error('Active users query error:', errorActiveUsers);
+    if (errorMonthlySales) console.error('Monthly sales query error:', errorMonthlySales);
+    if (errorConversionRate) console.error('Conversion rate query error:', errorConversionRate);
+    if (errorLeads) console.error('Leads query error:', errorLeads);
+  }, [errorProducts, errorActiveUsers, errorMonthlySales, errorConversionRate, errorLeads]);
 
   const leads: Customer[] =
     data?.contactLeadsByStore?.map((lead: any) => ({
@@ -136,6 +179,86 @@ export default function InsightsPage() {
     loadingMonthlySales ||
     loadingConversionRate ||
     loadingLeads;
+
+  // Show loading while checking user data
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show message if no store exists
+  if (user && !storeId) {
+    return (
+      <div className="space-y-6">
+        {/* Encabezado */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel de Insights</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Primero necesitas crear tu tienda para ver las métricas
+          </p>
+        </div>
+
+        {/* Message Card */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                ¡Bienvenido a EmprendyUp!
+              </h3>
+              <p className="text-blue-700 dark:text-blue-300 mb-4">
+                Para comenzar a ver tus métricas e insights, primero necesitas crear tu tienda
+                online.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard/store/new')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                Crear mi tienda
+              </button>
+            </div>
+            <div className="hidden md:block">
+              <Package className="h-16 w-16 text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Demo KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <KPICard
+            title="Total de Productos"
+            value={0}
+            icon={Package}
+            trend={{ value: 0, isPositive: true }}
+            loading={false}
+          />
+          <KPICard
+            title="Usuarios Activos"
+            value={0}
+            icon={Users}
+            trend={{ value: 0, isPositive: true }}
+            loading={false}
+          />
+          <KPICard
+            title="Ventas Mensuales"
+            value="$0"
+            icon={DollarSign}
+            trend={{ value: 0, isPositive: true }}
+            loading={false}
+          />
+          <KPICard
+            title="Tasa de Conversión"
+            value="0%"
+            icon={TrendingUp}
+            trend={{ value: 0, isPositive: true }}
+            loading={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     const styles = {

@@ -165,10 +165,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   if (!user) {
+    console.log('🔍 Dashboard Layout - No user found, showing loading...');
     return <div>Cargando...</div>;
   }
 
   if (isLoading) {
+    console.log('🔍 Dashboard Layout - Auth loading...');
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader className="h-8 w-8 animate-spin text-fourth-base" />
@@ -177,11 +179,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const isStoreNewPage = pathname === '/dashboard/store/new';
-  if (!isStoreNewPage && (!user || !['ADMIN', 'STORE_ADMIN'].includes(user.role))) {
+  console.log('🔍 Dashboard Layout - User role:', user?.role);
+  console.log('🔍 Dashboard Layout - Is store new page:', isStoreNewPage);
+  console.log('🔍 Dashboard Layout - Is authenticated:', isAuthenticated);
+
+  if (!isStoreNewPage && (!user || !['ADMIN', 'STORE_ADMIN', 'USER'].includes(user.role))) {
+    console.log('❌ Dashboard Layout - User role not authorized:', user?.role);
     return null;
   }
 
   if (!isAuthenticated) {
+    console.log('❌ Dashboard Layout - User not authenticated');
     return null;
   }
 

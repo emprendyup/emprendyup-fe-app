@@ -10,12 +10,12 @@ interface SizeSelectorProps {
 }
 
 const PRESET_SIZES = [
-  { name: 'Extra Small', value: 'XS' },
-  { name: 'Small', value: 'S' },
-  { name: 'Medium', value: 'M' },
-  { name: 'Large', value: 'L' },
-  { name: 'Extra Large', value: 'XL' },
-  { name: 'Double XL', value: 'XXL' },
+  { name: 'Extra pequeño', value: 'XS' },
+  { name: 'Pequeño', value: 'S' },
+  { name: 'Medio', value: 'M' },
+  { name: 'Largo', value: 'L' },
+  { name: 'Extra Largo', value: 'XL' },
+  { name: 'Doble XL', value: 'XXL' },
 ];
 
 export function SizeSelector({ sizes, onChange }: SizeSelectorProps) {

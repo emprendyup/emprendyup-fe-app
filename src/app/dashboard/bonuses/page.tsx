@@ -1,774 +1,632 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  Gift,
   Plus,
-  Search,
-  Filter,
-  MoreHorizontal,
   Edit,
   Trash2,
-  Users,
-  DollarSign,
+  CheckCircle,
+  RefreshCcw,
+  Ticket,
   Calendar,
-  TrendingUp,
-  Eye,
-  Copy,
-  Check,
-  X,
+  Users,
+  Link,
+  ExternalLink,
+  History,
 } from 'lucide-react';
-import KPICard from '../components/KPICard';
+import { gql, useQuery, useMutation } from '@apollo/client';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
-// Types
-interface Bonus {
-  id: string;
-  title: string;
-  description: string;
-  type: 'percentage' | 'fixed' | 'tiered';
-  value: number;
-  minPurchase?: number;
-  maxDiscount?: number;
-  code: string;
-  startDate: string;
-  endDate: string;
-  usageLimit: number;
-  usedCount: number;
-  status: 'active' | 'inactive' | 'expired' | 'scheduled';
-  targetUsers: 'all' | 'new' | 'returning' | 'vip';
-  categories?: string[];
-}
+// =======================
+// GraphQL QUERIES / MUTATIONS
+// =======================
+const GET_STORE_COUPONS = gql`
+  query StoreCoupons($storeId: String) {
+    storeCoupons(storeId: $storeId) {
+      id
+      code
+      name
+      description
+      type
+      value
+      isPercentage
+      minimumAmount
+      maximumDiscount
+      usageLimit
+      userUsageLimit
+      expiresAt
+      isActive
+      createdAt
+      updatedAt
+    }
+  }
+`;
 
-interface BonusFormData {
-  title: string;
-  description: string;
-  type: 'percentage' | 'fixed' | 'tiered';
-  value: number;
-  minPurchase: number;
-  maxDiscount: number;
-  code: string;
-  startDate: string;
-  endDate: string;
-  usageLimit: number;
-  targetUsers: 'all' | 'new' | 'returning' | 'vip';
-  categories: string[];
-}
+const CREATE_COUPON = gql`
+  mutation CreateCoupon($input: CreateCouponInput!) {
+    createCoupon(input: $input) {
+      id
+      code
+      name
+    }
+  }
+`;
 
-// Mock data
-const mockBonuses: Bonus[] = [
-  {
-    id: '1',
-    title: 'New Customer Welcome',
-    description: '20% off for first-time customers',
-    type: 'percentage',
-    value: 20,
-    minPurchase: 50,
-    maxDiscount: 100,
-    code: 'WELCOME20',
-    startDate: '2025-01-01',
-    endDate: '2025-12-31',
-    usageLimit: 1000,
-    usedCount: 245,
-    status: 'active',
-    targetUsers: 'new',
-    categories: ['Fashion', 'Electronics'],
-  },
-  {
-    id: '2',
-    title: 'VIP Member Special',
-    description: '$50 off on orders over $200',
-    type: 'fixed',
-    value: 50,
-    minPurchase: 200,
-    code: 'VIP50',
-    startDate: '2025-09-01',
-    endDate: '2025-09-30',
-    usageLimit: 500,
-    usedCount: 123,
-    status: 'active',
-    targetUsers: 'vip',
-    categories: ['Fashion'],
-  },
-  {
-    id: '3',
-    title: 'Black Friday Sale',
-    description: 'Up to 40% off everything',
-    type: 'percentage',
-    value: 40,
-    minPurchase: 0,
-    maxDiscount: 200,
-    code: 'BLACKFRIDAY',
-    startDate: '2025-11-29',
-    endDate: '2025-11-29',
-    usageLimit: 10000,
-    usedCount: 0,
-    status: 'scheduled',
-    targetUsers: 'all',
-  },
-  {
-    id: '4',
-    title: 'Summer Sale',
-    description: '15% off summer collection',
-    type: 'percentage',
-    value: 15,
-    minPurchase: 30,
-    maxDiscount: 75,
-    code: 'SUMMER15',
-    startDate: '2025-06-01',
-    endDate: '2025-08-31',
-    usageLimit: 2000,
-    usedCount: 1890,
-    status: 'expired',
-    targetUsers: 'all',
-    categories: ['Fashion'],
-  },
-];
+const UPDATE_COUPON = gql`
+  mutation UpdateCoupon($id: String!, $input: UpdateCouponInput!) {
+    updateCoupon(id: $id, input: $input) {
+      id
+      name
+      description
+      isActive
+      value
+    }
+  }
+`;
 
-const categories = ['Fashion', 'Electronics', 'Home & Garden', 'Sports', 'Beauty', 'Books'];
+const DELETE_COUPON = gql`
+  mutation DeleteCoupon($id: String!) {
+    deleteCoupon(id: $id)
+  }
+`;
 
-export default function BonusesPage() {
-  const [bonuses, setBonuses] = useState<Bonus[]>(mockBonuses);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBonus, setEditingBonus] = useState<Bonus | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedBonuses, setSelectedBonuses] = useState<string[]>([]);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-
-  // Form state
-  const [formData, setFormData] = useState<BonusFormData>({
-    title: '',
-    description: '',
-    type: 'percentage',
-    value: 0,
-    minPurchase: 0,
-    maxDiscount: 0,
-    code: '',
-    startDate: '',
-    endDate: '',
-    usageLimit: 100,
-    targetUsers: 'all',
-    categories: [],
+// =======================
+// COMPONENT
+// =======================
+export default function CouponsPage() {
+  const storeId = 'b1dd4319-06de-460b-9fdf-d8056b4e156e';
+  const { data, loading, error, refetch } = useQuery(GET_STORE_COUPONS, {
+    variables: { storeId },
   });
 
-  // Calculate KPIs
-  const kpis = useMemo(() => {
-    const activeBonuses = bonuses.filter((b) => b.status === 'active').length;
-    const totalUsage = bonuses.reduce((sum, b) => sum + b.usedCount, 0);
-    const avgUsageRate =
-      bonuses.length > 0
-        ? (bonuses.reduce((sum, b) => sum + b.usedCount / b.usageLimit, 0) / bonuses.length) * 100
-        : 0;
-    const expiringThisMonth = bonuses.filter((b) => {
-      const endDate = new Date(b.endDate);
-      const thisMonth = new Date();
-      thisMonth.setMonth(thisMonth.getMonth() + 1);
-      return endDate <= thisMonth && b.status === 'active';
-    }).length;
+  const [createCoupon] = useMutation(CREATE_COUPON);
+  const [updateCoupon] = useMutation(UPDATE_COUPON);
+  const [deleteCoupon] = useMutation(DELETE_COUPON);
 
-    return {
-      activeBonuses,
-      totalUsage,
-      avgUsageRate: Math.round(avgUsageRate),
-      expiringThisMonth,
-    };
-  }, [bonuses]);
+  const [openModal, setOpenModal] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState<any>({
+    code: '',
+    name: '',
+    description: '',
+    type: 'PERCENTAGE',
+    value: 0,
+    isPercentage: true,
+    minimumAmount: 0,
+    maximumDiscount: 0,
+    usageLimit: 0,
+    userUsageLimit: 0,
+    expiresAt: '',
+  });
 
-  // Filter bonuses
-  const filteredBonuses = useMemo(() => {
-    return bonuses.filter((bonus) => {
-      const matchesSearch =
-        bonus.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bonus.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bonus.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || bonus.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [bonuses, searchTerm, statusFilter]);
+  const coupons = data?.storeCoupons || [];
 
-  // Generate random code
-  const generateCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData((prev) => ({ ...prev, code: result }));
+  // KPIs
+  const activeCoupons = coupons.filter((c: any) => c.isActive).length;
+  const totalCoupons = coupons.length;
+  const expiringCoupons = coupons.filter((c: any) => {
+    if (!c.expiresAt) return false;
+    const daysUntilExpiry = Math.ceil(
+      (new Date(c.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    );
+    return daysUntilExpiry <= 7 && daysUntilExpiry > 0;
+  }).length;
+
+  // Filtro de búsqueda
+  const filteredCoupons = coupons.filter(
+    (c: any) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Form change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({
+      ...prev,
+      [name]:
+        name === 'value' || name.includes('Amount') || name.includes('Limit')
+          ? parseFloat(value) || 0
+          : value,
+    }));
   };
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Validación de campos requeridos
+  const isFormValid =
+    formData.code.trim() !== '' &&
+    formData.name.trim() !== '' &&
+    formData.type.trim() !== '' &&
+    Number(formData.value) > 0;
 
-    if (editingBonus) {
-      // Update existing bonus
-      setBonuses((prev) =>
-        prev.map((bonus) =>
-          bonus.id === editingBonus.id ? { ...bonus, ...formData, id: editingBonus.id } : bonus
-        )
-      );
-    } else {
-      // Create new bonus
-      const newBonus: Bonus = {
-        ...formData,
-        id: Date.now().toString(),
-        usedCount: 0,
-        status: new Date(formData.startDate) > new Date() ? 'scheduled' : 'active',
-      };
-      setBonuses((prev) => [newBonus, ...prev]);
-    }
-
-    // Reset form
-    setFormData({
-      title: '',
-      description: '',
-      type: 'percentage',
-      value: 0,
-      minPurchase: 0,
-      maxDiscount: 0,
-      code: '',
-      startDate: '',
-      endDate: '',
-      usageLimit: 100,
-      targetUsers: 'all',
-      categories: [],
-    });
-    setIsModalOpen(false);
-    setEditingBonus(null);
-  };
-
-  // Handle edit
-  const handleEdit = (bonus: Bonus) => {
-    setEditingBonus(bonus);
-    setFormData({
-      title: bonus.title,
-      description: bonus.description,
-      type: bonus.type,
-      value: bonus.value,
-      minPurchase: bonus.minPurchase || 0,
-      maxDiscount: bonus.maxDiscount || 0,
-      code: bonus.code,
-      startDate: bonus.startDate,
-      endDate: bonus.endDate,
-      usageLimit: bonus.usageLimit,
-      targetUsers: bonus.targetUsers,
-      categories: bonus.categories || [],
-    });
-    setIsModalOpen(true);
-  };
-
-  // Handle delete
-  const handleDelete = (id: string) => {
-    setBonuses((prev) => prev.filter((bonus) => bonus.id !== id));
-  };
-
-  // Copy code to clipboard
-  const copyCode = async (code: string) => {
+  // Guardar cupón
+  const handleSubmit = async () => {
     try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(code);
-      setTimeout(() => setCopiedCode(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+      if (!isFormValid) {
+        toast.error('Por favor completa todos los campos requeridos.');
+        return;
+      }
+
+      if (editingCoupon) {
+        await updateCoupon({
+          variables: {
+            id: editingCoupon.id,
+            input: {
+              name: formData.name,
+              description: formData.description,
+              value: Number(formData.value),
+              minimumAmount: Number(formData.minimumAmount),
+              maximumDiscount: Number(formData.maximumDiscount),
+              usageLimit: Number(formData.usageLimit),
+              userUsageLimit: Number(formData.userUsageLimit),
+              expiresAt: formData.expiresAt || null,
+            },
+          },
+        });
+        toast.success('✅ Cupón actualizado con éxito');
+      } else {
+        await createCoupon({
+          variables: {
+            input: {
+              ...formData,
+              value: Number(formData.value),
+              minimumAmount: Number(formData.minimumAmount),
+              maximumDiscount: Number(formData.maximumDiscount),
+              usageLimit: Number(formData.usageLimit),
+              userUsageLimit: Number(formData.userUsageLimit),
+              storeId,
+            },
+          },
+        });
+        toast.success('🎉 Cupón creado con éxito');
+      }
+
+      setOpenModal(false);
+      setEditingCoupon(null);
+      refetch();
+    } catch (err: any) {
+      console.error('Error al guardar el cupón:', err);
+      let mensaje = '❌ Ocurrió un error al guardar el cupón.';
+
+      if (err.message.includes('Coupon code already exists')) {
+        mensaje = 'El código del cupón ya existe. Intenta con otro.';
+      } else if (err.message.includes('Float cannot represent')) {
+        mensaje = 'Uno de los valores numéricos no es válido.';
+      } else if (err.message.includes('Network')) {
+        mensaje = 'Error de red. Verifica tu conexión a internet.';
+      } else if (err.message.includes('Unauthorized')) {
+        mensaje = 'No tienes permisos para realizar esta acción.';
+      }
+
+      toast.error(mensaje);
+    }
+  };
+  const router = useRouter();
+
+  // Eliminar cupón
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Seguro que deseas eliminar este cupón?')) return;
+    try {
+      await deleteCoupon({ variables: { id } });
+      toast.success('🗑️ Cupón eliminado con éxito');
+      refetch();
+    } catch {
+      toast.error('❌ Error al eliminar el cupón');
     }
   };
 
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-      case 'expired':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-    }
+  // Abrir para editar
+  const openEdit = (coupon: any) => {
+    setEditingCoupon(coupon);
+    setFormData({
+      ...coupon,
+      expiresAt: coupon.expiresAt ? coupon.expiresAt.split('T')[0] : '',
+    });
+    setOpenModal(true);
   };
 
-  const statusLabels: Record<string, string> = {
-    active: 'Activo',
-    inactive: 'Inactivo',
-    expired: 'Expirado',
-    scheduled: 'Programado',
+  // Abrir para crear
+  const openCreate = () => {
+    setEditingCoupon(null);
+    setFormData({
+      code: '',
+      name: '',
+      description: '',
+      type: 'PERCENTAGE',
+      value: 0,
+      isPercentage: true,
+      minimumAmount: 0,
+      maximumDiscount: 0,
+      usageLimit: 0,
+      userUsageLimit: 0,
+      expiresAt: '',
+    });
+    setOpenModal(true);
   };
+
+  // Formato moneda
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(amount);
+
+  if (loading)
+    return (
+      <div className="min-h-screen bg-slate-900 p-6">
+        <p className="text-slate-400">Cargando cupones...</p>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="min-h-screen bg-slate-900 p-6">
+        <p className="text-red-400">Error al cargar cupones.</p>
+      </div>
+    );
 
   return (
-    <div className="space-y-8">
+    <div className="min-h-screen bg-slate-900 p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Bonos y Promociones</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Gestiona códigos promocionales y bonos para clientes
-          </p>
+
+      <div>
+        <h1 className="text-3xl font-bold text-white">Gestión de Cupones</h1>
+        <p className="text-slate-400 mt-1">
+          Administra todos los cupones de descuento de tu tienda
+        </p>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <Ticket className="w-5 h-5 text-blue-400" />
+            <span className="text-slate-400 text-sm">Total cupones</span>
+          </div>
+          <div className="text-3xl font-bold text-white">{totalCoupons}</div>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 bg-fourth-base text-white rounded-lg hover:bg-fourth-base/90 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Crear bono
-        </button>
-      </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          title="Bonos activos"
-          value={kpis.activeBonuses}
-          icon={Gift}
-          description="Promociones actualmente vigentes"
-        />
-        <KPICard
-          title="Uso total"
-          value={kpis.totalUsage}
-          icon={Users}
-          description="Veces que se han utilizado los bonos"
-        />
-        <KPICard
-          title="Tasa promedio de uso"
-          value={`${kpis.avgUsageRate}%`}
-          icon={TrendingUp}
-          description="Porcentaje del límite de bonos utilizado"
-        />
-        <KPICard
-          title="Expiran pronto"
-          value={kpis.expiringThisMonth}
-          icon={Calendar}
-          description="Bonos que expiran este mes"
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar bonos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-          />
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            <span className="text-slate-400 text-sm">Activos</span>
+          </div>
+          <div className="text-3xl font-bold text-white">{activeCoupons}</div>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-        >
-          <option value="all">Todos</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
-          <option value="expired">Expirado</option>
-          <option value="scheduled">Programado</option>
-        </select>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <Calendar className="w-5 h-5 text-orange-400" />
+            <span className="text-slate-400 text-sm">Por vencer</span>
+          </div>
+          <div className="text-3xl font-bold text-white">{expiringCoupons}</div>
+        </div>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="w-5 h-5 text-purple-400" />
+            <span className="text-slate-400 text-sm">Usos totales</span>
+          </div>
+          <div className="text-3xl font-bold text-white">0</div>
+        </div>
       </div>
 
-      {/* Bonuses Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* Search + Crear */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <input
+          type="text"
+          placeholder="Buscar cupón..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full sm:w-96 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl transition font-medium"
+          >
+            <Plus className="w-5 h-5" /> Nuevo Cupón
+          </button>
+
+          <button
+            onClick={() => router.push('/dashboard/bonuses/ussage')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl transition font-medium"
+          >
+            <History className="w-5 h-5" /> Usados
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      {/* Tabla Desktop / Cards Mobile */}
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+          <table className="w-full text-left">
+            <thead className="bg-slate-700/50 text-slate-300 text-sm uppercase">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Bono
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Código
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Tipo y Valor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Uso
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Período
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Acciones
-                </th>
+                <th className="px-6 py-3">Nombre</th>
+                <th className="px-6 py-3">Código</th>
+                <th className="px-6 py-3">Tipo</th>
+                <th className="px-6 py-3">Valor</th>
+                <th className="px-6 py-3">Estado</th>
+                <th className="px-6 py-3">Expira</th>
+                <th className="px-6 py-3 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredBonuses.map((bonus) => (
-                <tr key={bonus.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {bonus.title}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {bonus.description}
-                      </div>
-                      {bonus.targetUsers !== 'all' && (
-                        <span className="inline-flex items-center px-2 py-1 mt-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                          {bonus.targetUsers} users
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded font-mono">
-                        {bonus.code}
-                      </code>
-                      <button
-                        onClick={() => copyCode(bonus.code)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Copiar código"
-                      >
-                        {copiedCode === bonus.code ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {bonus.type === 'percentage' ? `${bonus.value}%` : `$${bonus.value}`}
-                      {bonus.type === 'percentage' && ' off'}
-                    </div>
-                    {bonus.minPurchase && bonus.minPurchase > 0 && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Mín: ${bonus.minPurchase}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="flex-1">
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {bonus.usedCount} / {bonus.usageLimit}
-                        </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
-                          <div
-                            className="bg-fourth-base h-2 rounded-full"
-                            style={{
-                              width: `${Math.min((bonus.usedCount / bonus.usageLimit) * 100, 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {new Date(bonus.startDate).toLocaleDateString()}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      a {new Date(bonus.endDate).toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(bonus.status)}`}
-                    >
-                      {statusLabels[bonus.status] || bonus.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleEdit(bonus)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Edit bonus"
-                      >
-                        <Edit className="h-4 w-4 text-gray-400" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(bonus.id)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        title="Delete bonus"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-400" />
-                      </button>
-                    </div>
+            <tbody className="divide-y divide-slate-700">
+              {filteredCoupons.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-slate-400">
+                    No se encontraron cupones
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCoupons.map((coupon: any) => (
+                  <tr key={coupon.id} className="hover:bg-slate-700/30">
+                    <td className="px-6 py-4">{coupon.name}</td>
+                    <td className="px-6 py-4 font-mono">{coupon.code}</td>
+                    <td className="px-6 py-4">
+                      {coupon.type === 'PERCENTAGE'
+                        ? 'Porcentaje'
+                        : coupon.type === 'FIXED_AMOUNT'
+                          ? 'Monto fijo'
+                          : 'Otro'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {coupon.isPercentage ? `${coupon.value}%` : formatCurrency(coupon.value)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {coupon.isActive ? (
+                        <span className="text-green-400">Activo</span>
+                      ) : (
+                        <span className="text-slate-400">Inactivo</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {coupon.expiresAt
+                        ? new Date(coupon.expiresAt).toLocaleDateString('es-CO')
+                        : 'Sin fecha'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => openEdit(coupon)}
+                        className="p-2 text-slate-400 hover:text-blue-400"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(coupon.id)}
+                        className="p-2 text-slate-400 hover:text-red-400"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {editingBonus ? 'Editar bono' : 'Crear nuevo bono'}
-              </h2>
-              <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingBonus(null);
-                }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-4">
+        {filteredCoupons.length === 0 ? (
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
+            <p className="text-slate-400">No se encontraron cupones</p>
+          </div>
+        ) : (
+          filteredCoupons.map((coupon: any) => (
+            <div
+              key={coupon.id}
+              className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="text-white font-semibold text-lg">{coupon.name}</h3>
+                  <p className="text-slate-400 font-mono text-sm mt-1">{coupon.code}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openEdit(coupon)}
+                    className="p-2 text-slate-400 hover:text-blue-400"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(coupon.id)}
+                    className="p-2 text-slate-400 hover:text-red-400"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700">
+                <div>
+                  <p className="text-slate-500 text-xs uppercase mb-1">Tipo</p>
+                  <p className="text-white text-sm">
+                    {coupon.type === 'PERCENTAGE'
+                      ? 'Porcentaje'
+                      : coupon.type === 'FIXED_AMOUNT'
+                        ? 'Monto fijo'
+                        : 'Otro'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs uppercase mb-1">Valor</p>
+                  <p className="text-white text-sm font-semibold">
+                    {coupon.isPercentage ? `${coupon.value}%` : formatCurrency(coupon.value)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs uppercase mb-1">Estado</p>
+                  <p className="text-sm">
+                    {coupon.isActive ? (
+                      <span className="text-green-400">Activo</span>
+                    ) : (
+                      <span className="text-slate-400">Inactivo</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs uppercase mb-1">Expira</p>
+                  <p className="text-white text-sm">
+                    {coupon.expiresAt
+                      ? new Date(coupon.expiresAt).toLocaleDateString('es-CO')
+                      : 'Sin fecha'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Modal */}
+      {openModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-xl p-6 relative">
+            <button
+              onClick={() => setOpenModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl"
+            >
+              ✕
+            </button>
+
+            <h2 className="text-2xl font-bold text-white mb-4">
+              {editingCoupon ? 'Editar Cupón' : 'Nuevo Cupón'}
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: 'code', label: 'Código *', placeholder: 'VERANO2024' },
+                { name: 'name', label: 'Nombre *', placeholder: 'Descuento de verano' },
+              ].map((f) => (
+                <div key={f.name}>
+                  <label className="block text-sm text-slate-300 mb-2">{f.label}</label>
+                  <input
+                    name={f.name}
+                    value={formData[f.name]}
+                    onChange={handleInputChange}
+                    disabled={f.name === 'code' && !!editingCoupon}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                    placeholder={f.placeholder}
+                  />
+                </div>
+              ))}
+
+              <div className="md:col-span-2">
+                <label className="block text-sm text-slate-300 mb-2">Descripción</label>
+                <input
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500"
+                  placeholder="Descripción del cupón"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Tipo *</label>
+                <select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                >
+                  <option value="PERCENTAGE">Porcentaje</option>
+                  <option value="FIXED_AMOUNT">Monto fijo</option>
+                  <option value="FREE_SHIPPING">Envío gratis</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Valor *</label>
+                <input
+                  name="value"
+                  type="number"
+                  value={formData.value}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Monto mínimo</label>
+                <input
+                  name="minimumAmount"
+                  type="number"
+                  value={formData.minimumAmount}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Descuento máximo</label>
+                <input
+                  name="maximumDiscount"
+                  type="number"
+                  value={formData.maximumDiscount}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Límite total de uso</label>
+                <input
+                  name="usageLimit"
+                  type="number"
+                  value={formData.usageLimit}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Límite por usuario</label>
+                <input
+                  name="userUsageLimit"
+                  type="number"
+                  value={formData.userUsageLimit}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Fecha de expiración</label>
+                <input
+                  name="expiresAt"
+                  type="date"
+                  value={formData.expiresAt}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                    placeholder="p. ej., Bienvenida para nuevos clientes"
-                  />
-                </div>
+            <div className="flex justify-end mt-6 gap-3">
+              <button
+                onClick={() => setOpenModal(false)}
+                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+              >
+                Cancelar
+              </button>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    required
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, description: e.target.value }))
-                    }
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                    placeholder="Describe la oferta del bono..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Tipo
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        type: e.target.value as 'percentage' | 'fixed' | 'tiered',
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  >
-                    <option value="percentage">Porcentaje</option>
-                    <option value="fixed">Cantidad fija</option>
-                    <option value="tiered">Por niveles</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Valor {formData.type === 'percentage' ? '(%)' : '($)'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.value}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, value: Number(e.target.value) }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Compra mínima ($)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.minPurchase}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, minPurchase: Number(e.target.value) }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  />
-                </div>
-
-                {formData.type === 'percentage' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Descuento máximo ($)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formData.maxDiscount}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, maxDiscount: Number(e.target.value) }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Código del bono
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={formData.code}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))
-                      }
-                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent font-mono"
-                      placeholder="BONUS123"
-                    />
-                    <button
-                      type="button"
-                      onClick={generateCode}
-                      className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Generar
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Límite de uso
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={formData.usageLimit}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, usageLimit: Number(e.target.value) }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Fecha de inicio
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.startDate}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, startDate: e.target.value }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Fecha de finalización
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.endDate}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Usuarios objetivo
-                  </label>
-                  <select
-                    value={formData.targetUsers}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        targetUsers: e.target.value as 'all' | 'new' | 'returning' | 'vip',
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-fourth-base focus:border-transparent"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="new">Nuevos clientes</option>
-                    <option value="returning">Clientes recurrentes</option>
-                    <option value="vip">Miembros VIP</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Categorías (Opcional)
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((category) => (
-                      <label key={category} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={formData.categories.includes(category)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData((prev) => ({
-                                ...prev,
-                                categories: [...prev.categories, category],
-                              }));
-                            } else {
-                              setFormData((prev) => ({
-                                ...prev,
-                                categories: prev.categories.filter((c) => c !== category),
-                              }));
-                            }
-                          }}
-                          className="sr-only"
-                        />
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm cursor-pointer transition-colors ${
-                            formData.categories.includes(category)
-                              ? 'bg-fourth-base text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          {category}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingBonus(null);
-                  }}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-fourth-base text-white rounded-lg hover:bg-fourth-base/90 transition-colors"
-                >
-                  {editingBonus ? 'Actualizar bono' : 'Crear bono'}
-                </button>
-              </div>
-            </form>
+              <button
+                onClick={handleSubmit}
+                disabled={!isFormValid}
+                className={`px-5 py-2.5 rounded-lg font-medium transition ${
+                  isFormValid
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {editingCoupon ? 'Actualizar' : 'Crear'}
+              </button>
+            </div>
           </div>
         </div>
       )}

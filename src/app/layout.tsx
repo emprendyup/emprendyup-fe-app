@@ -95,10 +95,9 @@ import { ReactNode } from 'react';
 import ApolloWrapper from './components/ApolloWrapper';
 import ConditionalLayout from './components/ConditionalLayout';
 import Script from 'next/script';
-import { Toaster } from 'sonner';
 import CookieWrapper from './components/CookieWrapper';
 import { ThemeProvider } from 'next-themes';
-// import SessionWrapper from './components/SessionWrapper'; // Removed - using custom auth
+import { Toaster } from 'react-hot-toast';
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es" suppressHydrationWarning>
@@ -349,7 +348,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <ApolloWrapper>
             {/* <ConditionalLayout> */}
             {children}
-            <Toaster richColors position="top-right" />
+            <Toaster position="top-right" />
             {/* </ConditionalLayout> */}
           </ApolloWrapper>
           <CookieWrapper />

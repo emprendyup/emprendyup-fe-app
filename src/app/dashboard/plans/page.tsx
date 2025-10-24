@@ -45,7 +45,6 @@ export default function PlansPage() {
               ? parseInt(selectedPlan.price.replace('.', '')) * 12 * 0.7
               : parseInt(selectedPlan.price.replace('.', ''))
           }
-          customerEmail="cliente@ejemplo.com"
         />
       )}
     </div>

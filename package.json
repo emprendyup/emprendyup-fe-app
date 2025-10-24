@@ -25,6 +25,7 @@
     "dompurify": "^3.2.7",
     "editorjs-drag-drop": "^1.1.16",
     "editorjs-paragraph-with-alignment": "^3.0.0",
+    "epayco-sdk-node": "^1.4.4",
     "framer-motion": "^12.23.9",
     "lucide-react": "^0.542.0",
     "next": "15.0.3",

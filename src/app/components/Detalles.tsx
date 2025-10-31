@@ -179,9 +179,86 @@ const recentActivity = [
   },
 ];
 
-export default function DetailsStore() {
+interface DetailsStoreProps {
+  storeId?: string;
+  storeData?: any;
+}
+
+export default function DetailsStore({ storeId, storeData }: DetailsStoreProps) {
   const { currentStore, stores } = useSessionStore();
-  const [store] = useState<StoreData>(mockStore);
+
+  // Transformar datos reales al formato esperado
+  const transformStoreData = (data: any): StoreData => {
+    if (!data || !Object.keys(data).length) return mockStore;
+
+    return {
+      id: data.id || storeId || 'store-1',
+      name: data.name || 'Mi Tienda',
+      description: data.description || 'Descripción de mi tienda',
+      subdomain: data.storeId || 'mi-tienda',
+      customDomain: data.customDomain || undefined,
+      logo: data.logoUrl || undefined,
+      favicon: data.faviconUrl || undefined,
+      status: 'active', // Asumir activa por defecto
+      plan: 'professional', // Plan por defecto
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString(),
+      ownerId: data.ownerId || 'user-1',
+      settings: {
+        currency: data.currency || 'COP',
+        timezone: data.timezone || 'America/Bogota',
+        language: data.language || 'es',
+        theme: 'modern',
+        allowGuestCheckout: true,
+        requireEmailVerification: true,
+        enableReviews: true,
+        enableWishlist: true,
+      },
+      stats: {
+        totalProducts: 0, // Estos necesitarían venir de otra consulta
+        totalOrders: 0,
+        totalRevenue: 0,
+        monthlyRevenue: 0,
+        totalCustomers: 0,
+        averageOrderValue: 0,
+        conversionRate: 0,
+      },
+      features: [
+        'Catálogo de productos',
+        'Carrito de compras',
+        'Procesamiento de pagos',
+        'Gestión de inventario',
+        'Panel de administración',
+        'Reportes y analytics',
+        'SEO optimizado',
+        'Responsive design',
+      ],
+      address: data.address
+        ? {
+            street: data.address,
+            city: data.city || '',
+            state: data.department || '',
+            zipCode: '',
+            country: data.country || 'Colombia',
+          }
+        : undefined,
+    };
+  };
+
+  const [store] = useState<StoreData>(transformStoreData(storeData));
+
+  // Helper para resolver URLs de imágenes
+  const resolveImageUrl = (value?: string) => {
+    if (!value) return '';
+    if (
+      value.startsWith('http') ||
+      value.startsWith('https') ||
+      value.startsWith('blob:') ||
+      value.startsWith('data:')
+    )
+      return value;
+    return `https://emprendyup-images.s3.us-east-1.amazonaws.com/${value}`;
+  };
 
   // Helpers de color según estado/plan
   const getStatusColor = (status: string) => {
@@ -219,7 +296,16 @@ export default function DetailsStore() {
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 rounded-lg bg-fourth-base/10 flex items-center justify-center">
             {store.logo ? (
-              <img src={store.logo} alt={store.name} className="h-12 w-12 object-contain" />
+              <Image
+                src={resolveImageUrl(store.logo)}
+                alt={store.name}
+                width={48}
+                height={48}
+                className="h-12 w-12 object-contain rounded"
+                unoptimized={Boolean(
+                  store.logo?.startsWith('blob:') || store.logo?.startsWith('data:')
+                )}
+              />
             ) : (
               <Store className="h-8 w-8 text-fourth-base" />
             )}
@@ -243,21 +329,12 @@ export default function DetailsStore() {
         </div>
         <div className="flex items-center gap-3">
           <a
-            href={`https://${store.customDomain || `${store.subdomain}.emprendyup.com`}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={`https://${store.name}.com.co`}
             className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Ver tienda
           </a>
-          <Link
-            href="/dashboard/store/settings"
-            className="inline-flex items-center px-4 py-2 bg-fourth-base text-white rounded-lg hover:bg-fourth-base/90 transition-colors"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Configuración
-          </Link>
         </div>
       </div>
 
@@ -269,7 +346,7 @@ export default function DetailsStore() {
             <Globe className="h-5 w-5 text-fourth-base" />
           </div>
           <p className="text-sm font-medium text-gray-900 dark:text-white">
-            {store.customDomain || `${store.subdomain}.emprendyup.com`}
+            {store.customDomain || `${store.subdomain}.com`}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {store.customDomain ? 'Dominio personalizado' : 'Subdominio'}

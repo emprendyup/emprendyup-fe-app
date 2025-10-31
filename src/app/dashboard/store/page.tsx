@@ -487,7 +487,7 @@ export default function SingleStoreSettingsPage() {
               {/* Detalles Tab */}
               {activeTab === 'detalles' && (
                 <>
-                  <DetailsStore />
+                  <DetailsStore storeId={userData?.storeId} storeData={formData} />
                 </>
               )}
 
@@ -758,7 +758,7 @@ export default function SingleStoreSettingsPage() {
                         <h4 className="text-md font-medium text-gray-900 dark:text-white mb-4">
                           Colores del Tema
                         </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                           {[
                             { key: 'primaryColor', label: 'Principal' },
                             { key: 'secondaryColor', label: 'Secundario' },

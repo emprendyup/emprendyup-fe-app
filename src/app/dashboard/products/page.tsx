@@ -483,6 +483,38 @@ export default function ProductsPage() {
         )}
       </div>
 
+      {/* Mobile Select All */}
+      {filteredProducts.length > 0 && (
+        <div className="md:hidden bg-gray-800 border border-gray-700 rounded-lg p-3">
+          <label className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              checked={
+                selectedProducts.length === filteredProducts.length && filteredProducts.length > 0
+              }
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700"
+              style={
+                {
+                  accentColor: primaryColor,
+                  '--tw-ring-color': primaryColor,
+                } as React.CSSProperties
+              }
+            />
+            <span className="text-sm text-white font-medium">
+              {selectedProducts.length === filteredProducts.length && filteredProducts.length > 0
+                ? 'Deseleccionar todos'
+                : 'Seleccionar todos'}
+            </span>
+            {selectedProducts.length > 0 && (
+              <span className="text-xs text-gray-400">
+                ({selectedProducts.length} seleccionados)
+              </span>
+            )}
+          </label>
+        </div>
+      )}
+
       {/* Products Table/Cards */}
       {loadingProducts ? (
         <div className="text-center py-12">

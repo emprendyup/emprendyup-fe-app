@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
         </div>
         
         <form id="epayco-form" action="https://checkout.epayco.co/checkout.php" method="POST" style="display: none;">
-          <input type="hidden" name="p_cust_id_cliente" value="${process.env.NEXT_PUBLIC_EPAYCO_KEY}">
-          <input type="hidden" name="p_key" value="${process.env.NEXT_PUBLIC_EPAYCO_KEY}">
+          <input type="hidden" name="p_cust_id_cliente" value="${process.env.NEXT_PUBLIC_EPAYCO_CUSTOMER_ID || ''}">
+          <input type="hidden" name="p_key" value="${process.env.NEXT_PUBLIC_EPAYCO_PUBLIC_KEY || ''}">
           
           <!-- Información del producto -->
           <input type="hidden" name="p_id_invoice" value="${reference}">
@@ -96,14 +96,12 @@ export async function POST(req: NextRequest) {
           <input type="hidden" name="p_cust_document_type" value="CC">
           
           <!-- URLs de respuesta -->
-          <input type="hidden" name="p_url_response" value="${process.env.NEXT_PUBLIC_EPAYCO_RESPONSE_URL}">
-          <input type="hidden" name="p_url_confirmation" value="${process.env.NEXT_PUBLIC_EPAYCO_CONFIRMATION_URL}">
+          <input type="hidden" name="p_url_response" value="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/payment/response">
+          <input type="hidden" name="p_url_confirmation" value="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/payments/epayco/confirmation">
           
           <!-- Configuración -->
-          <input type="hidden" name="p_test_request" value="TRUE">
-          <input type="hidden" name="p_split_type" value="02">
-          <input type="hidden" name="p_split_primary_receiver" value="${process.env.NEXT_PUBLIC_EPAYCO_KEY}">
-          <input type="hidden" name="p_split_primary_receiver_fee" value="0">
+          <input type="hidden" name="p_test_request" value="${process.env.NEXT_PUBLIC_EPAYCO_TEST === 'true' ? 'TRUE' : 'FALSE'}">
+          <input type="hidden" name="p_method_confirmation" value="POST">
         </form>
 
         <script>

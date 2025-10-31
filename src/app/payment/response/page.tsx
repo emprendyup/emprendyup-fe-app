@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useEPaycoPayment } from '@/lib/hooks/useEPaycoPayment';
+import { LoaderIcon } from 'react-hot-toast';
 
-export default function PaymentResponsePage() {
+function PaymentResponsePage() {
   const searchParams = useSearchParams();
   const { processResponse, loading } = useEPaycoPayment();
   const [paymentStatus, setPaymentStatus] = useState<
@@ -171,5 +172,13 @@ export default function PaymentResponsePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<LoaderIcon />}>
+      <PaymentResponsePage />
+    </Suspense>
   );
 }

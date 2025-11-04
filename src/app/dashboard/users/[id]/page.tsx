@@ -1,50 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
 import { useParams, useRouter } from 'next/navigation';
 import { Save, ArrowLeft, User, Mail, Building2, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-const GET_USER = gql`
-  query GetUser($id: ID!) {
-    user(id: $id) {
-      id
-      name
-      email
-      role
-      store {
-        id
-        name
-      }
-    }
-  }
-`;
-
-const UPDATE_USER = gql`
-  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
-    updateUser(id: $id, input: $input) {
-      id
-      name
-      email
-      role
-      store {
-        id
-        name
-      }
-    }
-  }
-`;
-
-const GET_STORES = gql`
-  query GetStores {
-    stores {
-      id
-      name
-      storeId
-    }
-  }
-`;
+import { GET_USER, UPDATE_USER, GET_STORES } from '@/lib/graphql/queries';
+import { USER_ROLE_OPTIONS } from '@/lib/constants/user-roles';
 
 interface Store {
   id: string;
@@ -65,6 +27,13 @@ interface FormData {
   email: string;
   role: string;
   storeId: string;
+}
+
+interface UpdateUserInput {
+  name: string;
+  email: string;
+  role: string;
+  storeId?: string;
 }
 
 const EditUserPage = () => {
@@ -118,7 +87,7 @@ const EditUserPage = () => {
     setIsSaving(true);
 
     try {
-      const input: any = {
+      const input: UpdateUserInput = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
@@ -279,10 +248,11 @@ const EditUserPage = () => {
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Seleccione un rol</option>
-                    <option value="ADMIN">Admin</option>
-                    <option value="USER">Usuario</option>
-                    <option value="ENTREPRENEUR">Emprendedor</option>
-                    <option value="MANAGER">Manager</option>
+                    {USER_ROLE_OPTIONS.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

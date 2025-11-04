@@ -17,6 +17,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { gql, useQuery } from '@apollo/client';
+import { useRouter } from 'next/navigation';
 
 const GET_USERS = gql`
   query {
@@ -80,10 +81,12 @@ const UserCard = ({
   user,
   getInitials,
   getStoreColor,
+  onEdit,
 }: {
   user: User;
   getInitials: (name: string) => string;
   getStoreColor: (storeId: string) => string;
+  onEdit: (userId: string) => void;
 }) => (
   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all">
     <div className="flex items-start justify-between mb-3">
@@ -102,7 +105,10 @@ const UserCard = ({
         </div>
       </div>
       <div className="flex items-center gap-2 ml-2">
-        <button className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2">
+        <button
+          onClick={() => onEdit(user.id)}
+          className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2"
+        >
           <Edit className="h-4 w-4" />
         </button>
         <button className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-2">
@@ -136,12 +142,17 @@ const UserCard = ({
 );
 
 const UsersPage = () => {
+  const router = useRouter();
   const { data, loading, error } = useQuery(GET_USERS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStore, setSelectedStore] = useState('all');
 
   // Obtener usuarios desde GraphQL
   const users: User[] = data?.users || [];
+
+  const handleEditUser = (userId: string) => {
+    router.push(`/dashboard/users/${userId}`);
+  };
 
   // Obtener todas las tiendas únicas
   const stores = useMemo(() => {
@@ -340,6 +351,7 @@ const UsersPage = () => {
                     user={user}
                     getInitials={getInitials}
                     getStoreColor={getStoreColor}
+                    onEdit={handleEditUser}
                   />
                 ))}
               </div>
@@ -424,7 +436,10 @@ const UsersPage = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <button className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            <button
+                              onClick={() => handleEditUser(user.id)}
+                              className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            >
                               <Edit className="h-4 w-4" />
                             </button>
                             <button className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">

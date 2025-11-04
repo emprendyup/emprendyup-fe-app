@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, ApolloError } from '@apollo/client';
 import { useParams, useRouter } from 'next/navigation';
 import { Save, ArrowLeft, User, Mail, Building2, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -106,9 +106,11 @@ const EditUserPage = () => {
 
       toast.success('Usuario actualizado exitosamente');
       router.push('/dashboard/users');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating user:', error);
-      toast.error(error.message || 'Error al actualizar el usuario');
+      const errorMessage =
+        error instanceof ApolloError ? error.message : 'Error al actualizar el usuario';
+      toast.error(errorMessage);
     } finally {
       setIsSaving(false);
     }

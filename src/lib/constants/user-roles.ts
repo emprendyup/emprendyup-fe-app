@@ -8,8 +8,8 @@ export const USER_ROLES = {
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
 
 export const USER_ROLE_OPTIONS = [
-  { value: USER_ROLES.ADMIN, label: 'Admin' },
+  { value: USER_ROLES.ADMIN, label: 'Administrador' },
   { value: USER_ROLES.USER, label: 'Usuario' },
   { value: USER_ROLES.ENTREPRENEUR, label: 'Emprendedor' },
-  { value: USER_ROLES.MANAGER, label: 'Manager' },
+  { value: USER_ROLES.MANAGER, label: 'Gerente' },
 ];

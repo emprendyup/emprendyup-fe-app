@@ -181,7 +181,6 @@ const EditUserPage = () => {
     );
   }
 
-  const user: User = userData?.user;
   const stores: Store[] = storesData?.stores || [];
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { gql, useMutation } from '@apollo/client';
+import { gql, useMutation, useQuery } from '@apollo/client';
 import { useRouter } from 'next/navigation';
 import { blogApi, BlogPost } from '@/lib/blog/blog.api';
 import { generateSlug } from '@/lib/blog/slug';
@@ -38,6 +38,18 @@ export default function PostForm({ initialData }: PostFormProps) {
   const router = useRouter();
   const isEdit = Boolean(initialData?.id);
   const user = getUserFromLocalStorage();
+
+  const GET_ALL_POSTS = gql`
+    query GetAllPosts {
+      posts {
+        id
+        title
+        slug
+        excerpt
+        status
+      }
+    }
+  `;
 
   const CREATE_POST = gql`
     mutation CreatePost($input: CreatePostInput!) {
@@ -100,6 +112,11 @@ export default function PostForm({ initialData }: PostFormProps) {
   const [createPostMutation] = useMutation(CREATE_POST);
   const [updatePostMutation] = useMutation(UPDATE_POST);
 
+  // Query to get all posts for related posts selection
+  const { data: allPostsData } = useQuery(GET_ALL_POSTS, {
+    fetchPolicy: 'cache-and-network',
+  });
+
   // Auto-generate slug when leaving title field
   const handleTitleBlur = () => {
     if (!formData.slug && formData.title) {
@@ -154,25 +171,24 @@ export default function PostForm({ initialData }: PostFormProps) {
     setContentHtml(html);
   };
 
-  // Related posts suggestions
+  // Related posts suggestions - filtrar localmente desde allPosts
   useEffect(() => {
     if (!debouncedRelated || debouncedRelated.length < 2) {
       setRelatedSuggestions([]);
       return;
     }
-    (async () => {
-      try {
-        const res = await blogApi.searchPosts(debouncedRelated);
-        // Excluir el post actual y los ya relacionados
-        const filtered = (res || []).filter(
-          (post) => post.id !== initialData?.id && !formData.relatedPostIds?.includes(post.id!)
-        );
-        setRelatedSuggestions(filtered);
-      } catch (e) {
-        setRelatedSuggestions([]);
-      }
-    })();
-  }, [debouncedRelated, initialData?.id, formData.relatedPostIds]);
+
+    const allPosts: BlogPost[] = allPostsData?.posts || [];
+    const searchTerm = debouncedRelated.toLowerCase();
+    const filtered = allPosts.filter(
+      (post: BlogPost) =>
+        post.id !== initialData?.id &&
+        !formData.relatedPostIds?.includes(post.id!) &&
+        (post.title?.toLowerCase().includes(searchTerm) ||
+          post.excerpt?.toLowerCase().includes(searchTerm))
+    );
+    setRelatedSuggestions(filtered.slice(0, 10)); // Limitar a 10 resultados
+  }, [debouncedRelated, initialData?.id, formData.relatedPostIds, allPostsData]);
 
   const handleSubmit = async (status: 'DRAFT' | 'PUBLISHED') => {
     try {

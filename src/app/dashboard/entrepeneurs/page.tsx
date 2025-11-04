@@ -79,12 +79,22 @@ const WhatsappCampaignPage = () => {
     }
 
     try {
+      // Obtener información del usuario logueado
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+
+      if (!user || (!user.username && !user.name && !user.email)) {
+        toast.error('Error: No se pudo obtener la información del usuario');
+        return;
+      }
+
       const phoneNumbers = selectedIds.map((id) => {
         const ent = entrepreneurs.find((e) => e.id === id);
         return ent && ent?.phone?.startsWith('+') ? ent.phone : `+57${ent?.phone}`;
       });
 
       const payload = {
+        username: user.username || user.name || user.email,
         phoneNumbers,
         templateName: 'creacion_tienda',
         languageCode: 'es_CO',
@@ -114,7 +124,7 @@ const WhatsappCampaignPage = () => {
 
       const data = await response.json();
       toast.success(
-        `✅ Campaña enviada correctamente a ${data.sentCount || selectedIds.length} emprendedor(es).`
+        `✅ Campaña procesada: ${data.success} exitosos, ${data.failed} fallidos de ${data.total} total.`
       );
     } catch (error) {
       console.error('Error general al enviar la campaña:', error);

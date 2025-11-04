@@ -192,8 +192,8 @@ export const GET_PAYMENT_SUMMARY = gql`
 
 // Configuration Queries and Mutations
 export const GET_PAYMENT_CONFIGURATIONS = gql`
-  query GetPaymentConfigurations {
-    paymentConfigurations {
+  query GetPaymentConfigurations($storeId: ID) {
+    paymentConfigurations(storeId: $storeId) {
       id
       storeId
       wompiEnabled
@@ -220,9 +220,10 @@ export const GET_PAYMENT_CONFIGURATIONS = gql`
 `;
 
 export const CREATE_PAYMENT_CONFIGURATION = gql`
-  mutation CreatePaymentConfiguration($input: CreatePaymentConfigurationInput!) {
-    createPaymentConfiguration(input: $input) {
+  mutation CreatePaymentConfiguration($storeId: ID, $input: CreatePaymentConfigurationInput!) {
+    createPaymentConfiguration(storeId: $storeId, input: $input) {
       id
+      storeId
       wompiEnabled
       wompiPublicKey
       wompiTestMode

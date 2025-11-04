@@ -926,7 +926,7 @@ export default function StoreSettingsPage() {
                     </h2>
 
                     <div className="space-y-6">
-                      <PaymentConfiguration />
+                      <PaymentConfiguration storeId={urlStoreId} />
                     </div>
                   </div>
                 </div>

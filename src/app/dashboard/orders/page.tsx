@@ -44,6 +44,47 @@ const GET_ORDERS_BY_STORE = gql`
   }
 `;
 
+const PAGINATED_ORDERS = gql`
+  query PaginatedOrders($pagination: PaginationInput!) {
+    paginatedOrders(pagination: $pagination) {
+      items {
+        id
+        status
+        total
+        subtotal
+        tax
+        shipping
+        createdAt
+        userName
+        items {
+          id
+          productName
+          quantity
+          price
+          product {
+            name
+            images {
+              url
+            }
+          }
+        }
+        address {
+          name
+          street
+        }
+        store {
+          id
+          name
+          logoUrl
+        }
+      }
+      page
+      pageSize
+      total
+    }
+  }
+`;
+
 export default function OrderPage() {
   const [pedidos, setPedidos] = useState<Order[]>([]);
   const [pedidosFiltrados, setPedidosFiltrados] = useState<Order[]>([]);
@@ -62,14 +103,36 @@ export default function OrderPage() {
   const storeId = urlStoreId || currentStore?.id;
   const userData = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const { data, loading, error } = useQuery(GET_ORDERS_BY_STORE, {
+  const isAdmin =
+    userData?.role === 'ADMIN' ||
+    (Array.isArray(userData?.roles) && userData.roles.includes('ADMIN'));
+
+  const {
+    data: storeData,
+    loading: storeLoading,
+    error: storeError,
+  } = useQuery(GET_ORDERS_BY_STORE, {
     variables: { storeId: userData?.storeId || '' },
-    skip: !storeId,
+    skip: isAdmin || !storeId,
     fetchPolicy: 'network-only',
   });
 
+  const {
+    data: adminData,
+    loading: adminLoading,
+    error: adminError,
+  } = useQuery(PAGINATED_ORDERS, {
+    variables: { pagination: { page: currentPage, pageSize } },
+    skip: !isAdmin,
+    fetchPolicy: 'network-only',
+  });
+
+  const data = isAdmin ? adminData : storeData;
+  const loading = storeLoading || adminLoading;
+  const error = storeError || adminError;
+
   useEffect(() => {
-    if (data?.ordersByStore) {
+    if (!isAdmin && data?.ordersByStore) {
       const mapped: Order[] = data.ordersByStore.map((o: any) => ({
         id: o.id,
         storeId: o.store?.id || storeId,
@@ -97,7 +160,36 @@ export default function OrderPage() {
       setPedidos(mapped);
       setPedidosFiltrados(mapped);
     }
-  }, [data, storeId]);
+
+    if (isAdmin && data?.paginatedOrders?.items) {
+      const mapped: Order[] = data.paginatedOrders.items.map((o: any) => ({
+        id: o.id,
+        storeId: o.store?.id || storeId,
+        customerId: '',
+        customerName: o.userName || (o.address?.name ?? 'Cliente'),
+        customerEmail: '',
+        items: (o.items || []).map((it: any) => ({
+          id: it.id,
+          name: it.productName || it.product?.name || '',
+          quantity: it.quantity,
+          price: it.price,
+          product: it.product
+            ? {
+                name: it.product.name,
+                images: it.product.images || [],
+              }
+            : null,
+        })),
+        total: o.total || 0,
+        status: o.status || 'pending',
+        createdAt: o.createdAt,
+        updatedAt: o.updatedAt || o.createdAt,
+      }));
+
+      setPedidos(mapped);
+      setPedidosFiltrados(mapped);
+    }
+  }, [data, storeId, isAdmin]);
 
   useEffect(() => {
     let filtrados = pedidos;
@@ -119,11 +211,14 @@ export default function OrderPage() {
     setCurrentPage(1);
   }, [pedidos, busqueda, filtroEstado]);
 
-  const totalPages = Math.ceil(pedidosFiltrados.length / pageSize);
-  const paginatedOrders = pedidosFiltrados.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  const totalPages =
+    isAdmin && adminData?.paginatedOrders?.total
+      ? Math.ceil(adminData.paginatedOrders.total / pageSize)
+      : Math.ceil(pedidosFiltrados.length / pageSize);
+
+  const paginatedOrders = isAdmin
+    ? pedidosFiltrados
+    : pedidosFiltrados.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -157,23 +252,6 @@ export default function OrderPage() {
         {estado.charAt(0).toUpperCase() + estado.slice(1)}
       </span>
     );
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Pendiente';
-      case 'processing':
-        return 'Procesando';
-      case 'shipped':
-        return 'Enviado';
-      case 'delivered':
-        return 'Entregado';
-      case 'cancelled':
-        return 'Cancelada';
-      default:
-        return status;
-    }
   };
 
   const verPedido = (idPedido: string) => {

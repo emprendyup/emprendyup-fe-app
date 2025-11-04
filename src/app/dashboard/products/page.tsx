@@ -57,6 +57,48 @@ const GET_PRODUCTS_BY_STORE = gql`
   }
 `;
 
+const PAGINATED_PRODUCTS_QUERY = gql`
+  query GetPaginatedProducts($page: Int, $pageSize: Int) {
+    paginatedProducts(pagination: { page: $page, pageSize: $pageSize }) {
+      items {
+        id
+        name
+        title
+        description
+        price
+        currency
+        storeId
+        available
+        createdAt
+        updatedAt
+        images {
+          id
+          url
+          order
+        }
+        colors {
+          id
+          color
+          colorHex
+        }
+        sizes {
+          id
+          size
+        }
+        comments {
+          id
+          rating
+          comment
+          createdAt
+        }
+      }
+      total
+      page
+      pageSize
+    }
+  }
+`;
+
 const UPDATE_PRODUCT = gql`
   mutation UpdateProduct($id: String!, $input: UpdateProductInput!) {
     updateProduct(id: $id, input: $input) {
@@ -169,14 +211,50 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 
+  const isAdmin =
+    userData?.role === 'ADMIN' ||
+    (Array.isArray(userData?.roles) && userData.roles.includes('ADMIN'));
+
   const {
-    data: productsData,
-    loading: loadingProducts,
-    refetch: refetchProducts,
+    data: storeData,
+    loading: storeLoading,
+    refetch: refetchStoreProducts,
   } = useQuery(GET_PRODUCTS_BY_STORE, {
     variables: { storeId: userData?.storeId || '', page: currentPage, pageSize },
-    skip: !userData?.storeId,
+    skip: isAdmin || !userData?.storeId,
   });
+
+  const {
+    data: adminData,
+    loading: adminLoading,
+    refetch: refetchAdminProducts,
+  } = useQuery(PAGINATED_PRODUCTS_QUERY, {
+    variables: { page: currentPage, pageSize },
+    skip: !isAdmin,
+  });
+
+  const productsData = isAdmin ? adminData : storeData;
+  const loadingProducts = storeLoading || adminLoading;
+
+  const refetchProducts = async (vars?: any) => {
+    if (isAdmin) {
+      return (
+        refetchAdminProducts &&
+        refetchAdminProducts({
+          page: vars?.page || currentPage,
+          pageSize: vars?.pageSize || pageSize,
+        })
+      );
+    }
+    return (
+      refetchStoreProducts &&
+      refetchStoreProducts({
+        storeId: userData?.storeId || '',
+        page: vars?.page || currentPage,
+        pageSize: vars?.pageSize || pageSize,
+      })
+    );
+  };
   const [createProduct, { loading: creating }] = useMutation(CREATE_PRODUCT);
   const [updateProduct, { loading: updating }] = useMutation(UPDATE_PRODUCT);
   const [deleteProduct, { loading: deleting }] = useMutation(DELETE_PRODUCT);
@@ -187,9 +265,15 @@ export default function ProductsPage() {
   }
 
   // Use data from GraphQL
-  const products: Product[] = productsData?.productsByStore.items || [];
-  const totalProducts = productsData?.productsByStore.total || 0;
-  const totalPages = productsData?.productsByStore.totalPages || 1; // Use backend-provided totalPages
+  const products: Product[] = isAdmin
+    ? productsData?.paginatedProducts?.items || []
+    : productsData?.productsByStore?.items || [];
+  const totalProducts = isAdmin
+    ? productsData?.paginatedProducts?.total || 0
+    : productsData?.productsByStore?.total || 0;
+  const totalPages = isAdmin
+    ? Math.ceil((productsData?.paginatedProducts?.total || 0) / pageSize)
+    : productsData?.productsByStore?.totalPages || 1; // Use backend-provided totalPages when available
 
   const filteredProducts = products.filter(
     (product: Product) =>

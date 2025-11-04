@@ -1,10 +1,14 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Save, AlertCircle, CheckCircle, Key, Globe } from 'lucide-react';
 import { useStorePaymentConfiguration } from '@/lib/hooks/useStorePaymentConfiguration';
 import toast from 'react-hot-toast';
 
-export default function PaymentConfiguration() {
+interface PaymentConfigurationProps {
+  storeId?: string;
+}
+
+export default function PaymentConfiguration({ storeId }: PaymentConfigurationProps = {}) {
   const {
     configuration,
     loading,
@@ -15,34 +19,69 @@ export default function PaymentConfiguration() {
     isWompiEnabled,
     isMercadoPagoEnabled,
     isEpaycoEnabled,
-  } = useStorePaymentConfiguration();
+  } = useStorePaymentConfiguration(storeId);
 
   const [activeTab, setActiveTab] = useState('wompi');
   const [saving, setSaving] = useState(false);
 
-  // Wompi configuration state
+  // Wompi configuration state - inicializado vacío
   const [wompiConfig, setWompiConfig] = useState({
-    publicKey: configuration?.wompiPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.wompiTestMode ?? true,
-    webhookUrl: configuration?.webhookUrl || '',
-    successUrl: configuration?.successUrl || '',
-    cancelUrl: configuration?.cancelUrl || '',
+    testMode: true,
+    webhookUrl: '',
+    successUrl: '',
+    cancelUrl: '',
   });
 
-  // MercadoPago configuration state
+  // MercadoPago configuration state - inicializado vacío
   const [mercadoPagoConfig, setMercadoPagoConfig] = useState({
-    publicKey: configuration?.mercadoPagoPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.mercadoPagoTestMode ?? true,
+    testMode: true,
   });
 
-  // ePayco configuration state
+  // ePayco configuration state - inicializado vacío
   const [epaycoConfig, setEpaycoConfig] = useState({
-    publicKey: configuration?.epaycoPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.epaycoTestMode ?? true,
+    testMode: true,
   });
+
+  // Actualizar los estados solo cuando hay datos guardados en la base de datos
+  useEffect(() => {
+    if (configuration) {
+      // Solo actualizar Wompi si hay datos guardados
+      if (configuration.wompiPublicKey || configuration.wompiEnabled) {
+        setWompiConfig({
+          publicKey: configuration.wompiPublicKey || '',
+          apiKey: '',
+          testMode: configuration.wompiTestMode ?? true,
+          webhookUrl: configuration.webhookUrl || '',
+          successUrl: configuration.successUrl || '',
+          cancelUrl: configuration.cancelUrl || '',
+        });
+      }
+
+      // Solo actualizar MercadoPago si hay datos guardados
+      if (configuration.mercadoPagoPublicKey || configuration.mercadoPagoEnabled) {
+        setMercadoPagoConfig({
+          publicKey: configuration.mercadoPagoPublicKey || '',
+          apiKey: '',
+          testMode: configuration.mercadoPagoTestMode ?? true,
+        });
+      }
+
+      // Solo actualizar ePayco si hay datos guardados
+      if (configuration.epaycoPublicKey || configuration.epaycoEnabled) {
+        setEpaycoConfig({
+          publicKey: configuration.epaycoPublicKey || '',
+          apiKey: '',
+          testMode: configuration.epaycoTestMode ?? true,
+        });
+      }
+    }
+  }, [configuration]);
 
   const handleSaveWompi = async () => {
     setSaving(true);

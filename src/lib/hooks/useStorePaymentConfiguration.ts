@@ -41,15 +41,18 @@ export const getConfigurationErrorMessage = (error: ApolloError): string => {
 };
 
 // Custom hook for payment configurations
-export const usePaymentConfigurations = () => {
+export const usePaymentConfigurations = (storeId?: string) => {
   const { data, loading, error, refetch } = useQuery(GET_PAYMENT_CONFIGURATIONS, {
+    variables: storeId ? { storeId } : {},
     errorPolicy: 'all',
   });
 
   const [createConfiguration, { loading: creating, error: createError }] = useMutation(
     CREATE_PAYMENT_CONFIGURATION,
     {
-      refetchQueries: [{ query: GET_PAYMENT_CONFIGURATIONS }],
+      refetchQueries: [
+        { query: GET_PAYMENT_CONFIGURATIONS, variables: storeId ? { storeId } : {} },
+      ],
       errorPolicy: 'all',
     }
   );
@@ -57,14 +60,20 @@ export const usePaymentConfigurations = () => {
   const [updateConfiguration, { loading: updating, error: updateError }] = useMutation(
     UPDATE_PAYMENT_CONFIGURATION,
     {
-      refetchQueries: [{ query: GET_PAYMENT_CONFIGURATIONS }],
+      refetchQueries: [
+        { query: GET_PAYMENT_CONFIGURATIONS, variables: storeId ? { storeId } : {} },
+      ],
       errorPolicy: 'all',
     }
   );
 
   const handleCreateConfiguration = async (input: CreatePaymentConfigurationInput) => {
     try {
-      const { data } = await createConfiguration({ variables: { input } });
+      const variables: any = { input };
+      if (storeId) {
+        variables.storeId = storeId;
+      }
+      const { data } = await createConfiguration({ variables });
       return data?.createPaymentConfiguration;
     } catch (err) {
       throw new Error(getConfigurationErrorMessage(err as ApolloError));
@@ -94,9 +103,9 @@ export const usePaymentConfigurations = () => {
 };
 
 // Hook for getting current store's configuration
-export const useStorePaymentConfiguration = () => {
+export const useStorePaymentConfiguration = (storeId?: string) => {
   const { configurations, loading, error, createConfiguration, updateConfiguration } =
-    usePaymentConfigurations();
+    usePaymentConfigurations(storeId);
 
   // Assuming we have a way to get current store ID (could be from context/session)
   const currentConfiguration = configurations[0]; // For now, get the first one

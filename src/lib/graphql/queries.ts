@@ -244,9 +244,14 @@ export const CREATE_PAYMENT_CONFIGURATION = gql`
 `;
 
 export const UPDATE_PAYMENT_CONFIGURATION = gql`
-  mutation UpdatePaymentConfiguration($id: ID!, $input: UpdatePaymentConfigurationInput!) {
-    updatePaymentConfiguration(id: $id, input: $input) {
+  mutation UpdatePaymentConfiguration(
+    $id: ID!
+    $storeId: ID
+    $input: UpdatePaymentConfigurationInput!
+  ) {
+    updatePaymentConfiguration(id: $id, storeId: $storeId, input: $input) {
       id
+      storeId
       wompiEnabled
       wompiPublicKey
       wompiTestMode

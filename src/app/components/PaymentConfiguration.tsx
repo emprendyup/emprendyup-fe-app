@@ -9,6 +9,18 @@ interface PaymentConfigurationProps {
 }
 
 export default function PaymentConfiguration({ storeId }: PaymentConfigurationProps = {}) {
+  // Fallback para obtener storeId si no se proporciona
+  const fallbackStoreId = React.useMemo(() => {
+    if (storeId) return storeId;
+
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      return userData?.storeId;
+    } catch {
+      return undefined;
+    }
+  }, [storeId]);
+
   const {
     configuration,
     loading,
@@ -19,7 +31,7 @@ export default function PaymentConfiguration({ storeId }: PaymentConfigurationPr
     isWompiEnabled,
     isMercadoPagoEnabled,
     isEpaycoEnabled,
-  } = useStorePaymentConfiguration(storeId);
+  } = useStorePaymentConfiguration(fallbackStoreId);
 
   const [activeTab, setActiveTab] = useState('wompi');
   const [saving, setSaving] = useState(false);
@@ -84,39 +96,63 @@ export default function PaymentConfiguration({ storeId }: PaymentConfigurationPr
   }, [configuration]);
 
   const handleSaveWompi = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving Wompi config with storeId:', fallbackStoreId);
       await setupWompiConfiguration(wompiConfig);
       toast.success('Configuración de Wompi guardada exitosamente');
     } catch (error) {
       console.error('Error saving Wompi config:', error);
-      toast.error('Error al guardar la configuración de Wompi');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de Wompi';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveMercadoPago = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving MercadoPago config with storeId:', fallbackStoreId);
       await setupMercadoPagoConfiguration(mercadoPagoConfig);
       toast.success('Configuración de MercadoPago guardada exitosamente');
     } catch (error) {
       console.error('Error saving MercadoPago config:', error);
-      toast.error('Error al guardar la configuración de MercadoPago');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de MercadoPago';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveEpayco = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving ePayco config with storeId:', fallbackStoreId);
       await setupEpaycoConfiguration(epaycoConfig);
       toast.success('Configuración de ePayco guardada exitosamente');
     } catch (error) {
       console.error('Error saving ePayco config:', error);
-      toast.error('Error al guardar la configuración de ePayco');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de ePayco';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

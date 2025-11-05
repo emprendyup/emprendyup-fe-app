@@ -82,7 +82,11 @@ export const usePaymentConfigurations = (storeId?: string) => {
 
   const handleUpdateConfiguration = async (id: string, input: UpdatePaymentConfigurationInput) => {
     try {
-      const { data } = await updateConfiguration({ variables: { id, input } });
+      const variables: any = { id, input };
+      if (storeId) {
+        variables.storeId = storeId;
+      }
+      const { data } = await updateConfiguration({ variables });
       return data?.updatePaymentConfiguration;
     } catch (err) {
       throw new Error(getConfigurationErrorMessage(err as ApolloError));

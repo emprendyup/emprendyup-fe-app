@@ -41,6 +41,16 @@ interface Entrepreneur {
   description?: string;
 }
 
+// 🔹 Función para obtener iniciales
+const getInitials = (name: string): string => {
+  if (!name) return 'U';
+  return name
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('');
+};
+
 // 🔹 Componente principal
 const WhatsappCampaignPage = () => {
   const { data, loading, error } = useQuery(GET_ENTREPRENEURS);
@@ -229,8 +239,10 @@ const WhatsappCampaignPage = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                        {e.name.substring(0, 2).toUpperCase()}
+                      <div className="flex-shrink-0 h-10 w-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                          {getInitials(e.name)}
+                        </span>
                       </div>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
                         {e.name}

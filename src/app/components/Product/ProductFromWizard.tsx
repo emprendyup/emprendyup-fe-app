@@ -1741,14 +1741,53 @@ export function ProductFormWizard({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-3 md:px-4 py-2 border border-gray-600 text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base"
-            >
-              <span className="hidden sm:inline">Cancelar</span>
-              <span className="sm:hidden">✕</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3 md:px-4 py-2 border border-gray-600 text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base"
+              >
+                <span className="hidden sm:inline">Cancelar</span>
+                <span className="sm:hidden">✕</span>
+              </button>
+              {product && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || isSaving || isUploadingImages}
+                  className="text-white px-4 md:px-6 py-2 rounded-lg disabled:opacity-50 flex items-center transition-all hover:shadow-lg text-sm md:text-base"
+                  style={{
+                    backgroundColor: store?.primaryColor || '#2563eb',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading && !isSaving && !isUploadingImages) {
+                      e.currentTarget.style.backgroundColor = store?.primaryColor || '#1e293b';
+                      e.currentTarget.style.opacity = '0.8';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = store?.primaryColor || '#2563eb';
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                >
+                  {loading || isSaving || isUploadingImages ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      <span className="hidden sm:inline">
+                        {isUploadingImages ? 'Subiendo imágenes...' : 'Actualizando...'}
+                      </span>
+                      <span className="sm:hidden">
+                        {isUploadingImages ? 'Subiendo...' : 'Actualizando...'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">Actualizar </span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

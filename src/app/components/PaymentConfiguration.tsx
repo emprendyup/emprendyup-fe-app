@@ -1,10 +1,26 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Save, AlertCircle, CheckCircle, Key, Globe } from 'lucide-react';
 import { useStorePaymentConfiguration } from '@/lib/hooks/useStorePaymentConfiguration';
 import toast from 'react-hot-toast';
 
-export default function PaymentConfiguration() {
+interface PaymentConfigurationProps {
+  storeId?: string;
+}
+
+export default function PaymentConfiguration({ storeId }: PaymentConfigurationProps = {}) {
+  // Fallback para obtener storeId si no se proporciona
+  const fallbackStoreId = React.useMemo(() => {
+    if (storeId) return storeId;
+
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      return userData?.storeId;
+    } catch {
+      return undefined;
+    }
+  }, [storeId]);
+
   const {
     configuration,
     loading,
@@ -15,69 +31,128 @@ export default function PaymentConfiguration() {
     isWompiEnabled,
     isMercadoPagoEnabled,
     isEpaycoEnabled,
-  } = useStorePaymentConfiguration();
+  } = useStorePaymentConfiguration(fallbackStoreId);
 
   const [activeTab, setActiveTab] = useState('wompi');
   const [saving, setSaving] = useState(false);
 
-  // Wompi configuration state
+  // Wompi configuration state - inicializado vacío
   const [wompiConfig, setWompiConfig] = useState({
-    publicKey: configuration?.wompiPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.wompiTestMode ?? true,
-    webhookUrl: configuration?.webhookUrl || '',
-    successUrl: configuration?.successUrl || '',
-    cancelUrl: configuration?.cancelUrl || '',
+    testMode: true,
+    webhookUrl: '',
+    successUrl: '',
+    cancelUrl: '',
   });
 
-  // MercadoPago configuration state
+  // MercadoPago configuration state - inicializado vacío
   const [mercadoPagoConfig, setMercadoPagoConfig] = useState({
-    publicKey: configuration?.mercadoPagoPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.mercadoPagoTestMode ?? true,
+    testMode: true,
   });
 
-  // ePayco configuration state
+  // ePayco configuration state - inicializado vacío
   const [epaycoConfig, setEpaycoConfig] = useState({
-    publicKey: configuration?.epaycoPublicKey || '',
+    publicKey: '',
     apiKey: '',
-    testMode: configuration?.epaycoTestMode ?? true,
+    testMode: true,
   });
+
+  // Actualizar los estados solo cuando hay datos guardados en la base de datos
+  useEffect(() => {
+    if (configuration) {
+      // Solo actualizar Wompi si hay datos guardados
+      if (configuration.wompiPublicKey || configuration.wompiEnabled) {
+        setWompiConfig({
+          publicKey: configuration.wompiPublicKey || '',
+          apiKey: '',
+          testMode: configuration.wompiTestMode ?? true,
+          webhookUrl: configuration.webhookUrl || '',
+          successUrl: configuration.successUrl || '',
+          cancelUrl: configuration.cancelUrl || '',
+        });
+      }
+
+      // Solo actualizar MercadoPago si hay datos guardados
+      if (configuration.mercadoPagoPublicKey || configuration.mercadoPagoEnabled) {
+        setMercadoPagoConfig({
+          publicKey: configuration.mercadoPagoPublicKey || '',
+          apiKey: '',
+          testMode: configuration.mercadoPagoTestMode ?? true,
+        });
+      }
+
+      // Solo actualizar ePayco si hay datos guardados
+      if (configuration.epaycoPublicKey || configuration.epaycoEnabled) {
+        setEpaycoConfig({
+          publicKey: configuration.epaycoPublicKey || '',
+          apiKey: '',
+          testMode: configuration.epaycoTestMode ?? true,
+        });
+      }
+    }
+  }, [configuration]);
 
   const handleSaveWompi = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving Wompi config with storeId:', fallbackStoreId);
       await setupWompiConfiguration(wompiConfig);
       toast.success('Configuración de Wompi guardada exitosamente');
     } catch (error) {
       console.error('Error saving Wompi config:', error);
-      toast.error('Error al guardar la configuración de Wompi');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de Wompi';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveMercadoPago = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving MercadoPago config with storeId:', fallbackStoreId);
       await setupMercadoPagoConfiguration(mercadoPagoConfig);
       toast.success('Configuración de MercadoPago guardada exitosamente');
     } catch (error) {
       console.error('Error saving MercadoPago config:', error);
-      toast.error('Error al guardar la configuración de MercadoPago');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de MercadoPago';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveEpayco = async () => {
+    if (!fallbackStoreId) {
+      toast.error('No se pudo identificar la tienda. Por favor, recarga la página.');
+      return;
+    }
+
     setSaving(true);
     try {
+      console.log('Saving ePayco config with storeId:', fallbackStoreId);
       await setupEpaycoConfiguration(epaycoConfig);
       toast.success('Configuración de ePayco guardada exitosamente');
     } catch (error) {
       console.error('Error saving ePayco config:', error);
-      toast.error('Error al guardar la configuración de ePayco');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al guardar la configuración de ePayco';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

@@ -1,61 +1,123 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MessageCircle, Phone, Clock, Filter, Send } from 'lucide-react';
+import { Search, Phone, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { useQuery, gql } from '@apollo/client';
 
-const GET_WHATSAPP_MESSAGES = gql`
-  query GetAllWhatsAppMessages {
-    getAllWhatsAppMessages {
+const GET_SENT_WHATSAPP_MESSAGES = gql`
+  query GetSentWhatsAppMessages($phoneNumber: String) {
+    getSentWhatsAppMessages(phoneNumber: $phoneNumber) {
       id
-      templateName
-      to
-      messageId
+      whatsappId
+      type
+      direction
+      text
+      status
       timestamp
+      delivered
+      read
+      errorCode
+      errorMessage
+      contact {
+        id
+        phoneNumber
+        name
+        profileName
+        language
+      }
+      conversation {
+        id
+        status
+        lastMessageAt
+        contact {
+          id
+          phoneNumber
+          name
+          profileName
+        }
+      }
+      createdAt
+      updatedAt
     }
   }
 `;
 
-interface Conversation {
-  phoneNumber: string;
-  contactName: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  messageCount: number;
+interface WhatsAppMessage {
+  id: string;
+  whatsappId: string;
+  type: string;
+  direction: string;
+  text: string;
+  status: string;
+  timestamp: string;
+  delivered: boolean;
+  read: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  contact: {
+    id: string;
+    phoneNumber: string;
+    name?: string;
+    profileName?: string;
+    language?: string;
+  };
+  conversation: {
+    id: string;
+    status: string;
+    lastMessageAt: string;
+    contact: {
+      id: string;
+      phoneNumber: string;
+      name?: string;
+      profileName?: string;
+    };
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
-const WhatsAppConversations = () => {
+const WhatsAppMessages = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const [phoneNumberFilter] = useState('');
 
-  const { loading, error, data } = useQuery(GET_WHATSAPP_MESSAGES);
+  const { loading, error, data } = useQuery(GET_SENT_WHATSAPP_MESSAGES, {
+    variables: { phoneNumber: phoneNumberFilter || undefined },
+  });
 
-  const conversations = data?.whatsappConversations?.conversations || [];
-  const totalCount = data?.whatsappConversations?.count || 0;
+  const messages: WhatsAppMessage[] = data?.getSentWhatsAppMessages || [];
+  const totalCount = messages.length;
 
-  const filteredConversations = conversations.filter(
-    (conv: any) =>
-      conv.contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.phoneNumber.includes(searchTerm) ||
-      conv.lastMessage.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredMessages = messages.filter(
+    (message) =>
+      message.contact.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      message.contact.phoneNumber.includes(searchTerm) ||
+      message.text.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const toggleConversation = (phoneNumber: string) => {
-    const newSelected = new Set(selectedConversations);
-    if (newSelected.has(phoneNumber)) {
-      newSelected.delete(phoneNumber);
-    } else {
-      newSelected.add(phoneNumber);
+  const getStatusIcon = (message: WhatsAppMessage) => {
+    if (message.errorCode) {
+      return <XCircle className="w-4 h-4 text-red-500" />;
     }
-    setSelectedConversations(newSelected);
+    if (message.read) {
+      return <CheckCircle className="w-4 h-4 text-blue-500" />;
+    }
+    if (message.delivered) {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    }
+    return <Clock className="w-4 h-4 text-gray-400" />;
   };
 
-  const toggleAll = () => {
-    if (selectedConversations.size === filteredConversations.length) {
-      setSelectedConversations(new Set());
-    } else {
-      setSelectedConversations(new Set(filteredConversations.map((c: any) => c.phoneNumber)));
+  const getStatusText = (message: WhatsAppMessage) => {
+    if (message.errorCode) {
+      return `Error: ${message.errorMessage || message.errorCode}`;
     }
+    if (message.read) {
+      return 'Leído';
+    }
+    if (message.delivered) {
+      return 'Entregado';
+    }
+    return 'Enviado';
   };
 
   const formatTime = (timestamp: string) => {
@@ -89,9 +151,9 @@ const WhatsAppConversations = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-1">Conversaciones de WhatsApp</h1>
+            <h1 className="text-3xl font-bold text-white mb-1">Mensajes de WhatsApp Enviados</h1>
             <p className="text-slate-400">
-              {loading ? 'Cargando...' : `${totalCount} conversaciones activas`}
+              {loading ? 'Cargando...' : `${totalCount} mensajes enviados`}
             </p>
           </div>
         </div>
@@ -99,7 +161,7 @@ const WhatsAppConversations = () => {
         {/* Error State */}
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-400">
-            Error al cargar conversaciones: {error.message}
+            Error al cargar mensajes: {error.message}
           </div>
         )}
 
@@ -121,7 +183,7 @@ const WhatsAppConversations = () => {
         <div className="hidden md:block bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-slate-400">
-              <div className="animate-pulse">Cargando conversaciones...</div>
+              <div className="animate-pulse">Cargando mensajes...</div>
             </div>
           ) : (
             <table className="w-full">
@@ -131,55 +193,46 @@ const WhatsAppConversations = () => {
                     Contacto
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Teléfono
+                    Mensaje
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Último mensaje
+                    Estado
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Mensajes
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Última actividad
+                    Enviado
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
-                {filteredConversations.map((conversation: any) => (
-                  <tr
-                    key={conversation.phoneNumber}
-                    className="hover:bg-slate-700/30 transition-colors cursor-pointer"
-                  >
+                {filteredMessages.map((message) => (
+                  <tr key={message.id} className="hover:bg-slate-700/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
-                          {getInitials(conversation.contactName)}
+                          {getInitials(message.contact.name || message.contact.phoneNumber)}
                         </div>
-                        <div className="font-medium text-white">{conversation.contactName}</div>
+                        <div>
+                          <div className="font-medium text-white">
+                            {message.contact.name || message.contact.profileName || 'Sin nombre'}
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400 text-sm">
+                            <Phone className="w-3 h-3" />
+                            {message.contact.phoneNumber}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <Phone className="w-4 h-4 text-slate-400" />
-                        {conversation.phoneNumber}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-400 max-w-md truncate">
-                        {conversation.lastMessage}
-                      </div>
+                      <div className="text-sm text-slate-300 max-w-md">{message.text}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <MessageCircle className="w-4 h-4 text-blue-400" />
-                        <span className="text-white font-medium">{conversation.messageCount}</span>
+                        {getStatusIcon(message)}
+                        <span className="text-sm text-slate-300">{getStatusText(message)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-slate-400 text-sm">
-                        <Clock className="w-4 h-4" />
-                        {formatTime(conversation.lastMessageTime)}
-                      </div>
+                      <div className="text-sm text-slate-400">{formatTime(message.timestamp)}</div>
                     </td>
                   </tr>
                 ))}
@@ -187,8 +240,8 @@ const WhatsAppConversations = () => {
             </table>
           )}
 
-          {!loading && filteredConversations.length === 0 && (
-            <div className="p-12 text-center text-slate-400">No se encontraron conversaciones</div>
+          {!loading && filteredMessages.length === 0 && (
+            <div className="p-12 text-center text-slate-400">No se encontraron mensajes</div>
           )}
         </div>
 
@@ -196,52 +249,51 @@ const WhatsAppConversations = () => {
         <div className="md:hidden space-y-4">
           {loading ? (
             <div className="p-12 text-center text-slate-400">
-              <div className="animate-pulse">Cargando conversaciones...</div>
+              <div className="animate-pulse">Cargando mensajes...</div>
             </div>
           ) : (
             <>
-              {filteredConversations.map((conversation: any) => (
+              {filteredMessages.map((message) => (
                 <div
-                  key={conversation.phoneNumber}
+                  key={message.id}
                   className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5"
                 >
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center text-white font-semibold">
-                      {getInitials(conversation.contactName)}
+                      {getInitials(message.contact.name || message.contact.phoneNumber)}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white mb-1">{conversation.contactName}</h3>
+                      <h3 className="font-semibold text-white mb-1">
+                        {message.contact.name || message.contact.profileName || 'Sin nombre'}
+                      </h3>
                       <div className="flex items-center gap-2 text-slate-400 text-sm">
                         <Phone className="w-3 h-3" />
-                        {conversation.phoneNumber}
+                        {message.contact.phoneNumber}
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-3">
                     <div className="bg-slate-700/30 rounded-lg p-3">
-                      <p className="text-sm text-slate-300 italic">{conversation.lastMessage}</p>
+                      <p className="text-sm text-slate-300">{message.text}</p>
                     </div>
 
                     <div className="flex justify-between items-center text-sm">
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <MessageCircle className="w-4 h-4 text-blue-400" />
-                        <span className="text-white font-medium">{conversation.messageCount}</span>
-                        <span>mensajes</span>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(message)}
+                        <span className="text-slate-300">{getStatusText(message)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-slate-400">
                         <Clock className="w-4 h-4" />
-                        {formatTime(conversation.lastMessageTime)}
+                        {formatTime(message.timestamp)}
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
 
-              {!loading && filteredConversations.length === 0 && (
-                <div className="p-12 text-center text-slate-400">
-                  No se encontraron conversaciones
-                </div>
+              {!loading && filteredMessages.length === 0 && (
+                <div className="p-12 text-center text-slate-400">No se encontraron mensajes</div>
               )}
             </>
           )}
@@ -251,4 +303,4 @@ const WhatsAppConversations = () => {
   );
 };
 
-export default WhatsAppConversations;
+export default WhatsAppMessages;

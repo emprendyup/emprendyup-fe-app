@@ -1,7 +1,9 @@
+import { Save } from 'lucide-react';
 export const USER_ROLES = {
   ADMIN: 'ADMIN',
   USER: 'USER',
   ENTREPRENEUR: 'ENTREPRENEUR',
+  STORE_ADMIN: 'STORE_ADMIN',
   MANAGER: 'MANAGER',
 } as const;
 
@@ -11,5 +13,6 @@ export const USER_ROLE_OPTIONS = [
   { value: USER_ROLES.ADMIN, label: 'Administrador' },
   { value: USER_ROLES.USER, label: 'Usuario' },
   { value: USER_ROLES.ENTREPRENEUR, label: 'Emprendedor' },
+  { value: USER_ROLES.STORE_ADMIN, label: 'Administrador de tienda' },
   { value: USER_ROLES.MANAGER, label: 'Gerente' },
 ];

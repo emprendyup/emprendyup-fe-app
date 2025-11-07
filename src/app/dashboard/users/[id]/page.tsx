@@ -5,7 +5,7 @@ import { useQuery, useMutation, ApolloError } from '@apollo/client';
 import { useParams, useRouter } from 'next/navigation';
 import { Save, ArrowLeft, User, Mail, Building2, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { GET_USER, UPDATE_USER, GET_STORES } from '@/lib/graphql/queries';
+import { GET_ALL_STORES_FOR_ADMIN, GET_USER, UPDATE_USER } from '@/lib/graphql/queries';
 import { USER_ROLE_OPTIONS } from '@/lib/constants/user-roles';
 
 interface Store {
@@ -17,6 +17,7 @@ interface Store {
 interface User {
   id: string;
   name: string;
+  membershipLevel: string;
   email: string;
   role: string;
   store: Store | null;
@@ -25,12 +26,14 @@ interface User {
 interface FormData {
   name: string;
   email: string;
+  membershipLevel: string;
   role: string;
   storeId: string;
 }
 
 interface UpdateUserInput {
   name: string;
+  membershipLevel: string;
   email: string;
   role: string;
   storeId?: string;
@@ -44,6 +47,7 @@ const EditUserPage = () => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
+    membershipLevel: '',
     role: '',
     storeId: '',
   });
@@ -58,7 +62,7 @@ const EditUserPage = () => {
     variables: { id: userId },
   });
 
-  const { data: storesData, loading: storesLoading } = useQuery(GET_STORES);
+  const { data: storesData, loading: storesLoading } = useQuery(GET_ALL_STORES_FOR_ADMIN);
 
   const [updateUser] = useMutation(UPDATE_USER);
 
@@ -68,6 +72,7 @@ const EditUserPage = () => {
       setFormData({
         name: user.name || '',
         email: user.email || '',
+        membershipLevel: user.membershipLevel || '',
         role: user.role || '',
         storeId: user.store?.id || '',
       });
@@ -90,6 +95,7 @@ const EditUserPage = () => {
       const input: UpdateUserInput = {
         name: formData.name,
         email: formData.email,
+        membershipLevel: formData.membershipLevel,
         role: formData.role,
       };
 
@@ -152,7 +158,7 @@ const EditUserPage = () => {
     );
   }
 
-  const stores: Store[] = storesData?.stores || [];
+  const stores: Store[] = storesData?.getAllStoresForAdmin || [];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
@@ -229,6 +235,36 @@ const EditUserPage = () => {
                     placeholder="usuario@ejemplo.com"
                   />
                 </div>
+              </div>
+
+              {/* Membership Level Field */}
+              <div>
+                <label
+                  htmlFor="membershipLevel"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
+                  Nivel de membresía
+                </label>
+                <div className="relative">
+                  <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <select
+                    id="membershipLevel"
+                    name="membershipLevel"
+                    value={formData.membershipLevel}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Seleccione un nivel</option>
+                    <option value="FREE">Gratuito</option>
+                    <option value="BASIC">Básico</option>
+                    <option value="PREMIUM">Premium</option>
+                    <option value="ENTERPRISE">Empresarial</option>
+                  </select>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Define el nivel de acceso y características disponibles
+                </p>
               </div>
 
               {/* Role Field */}

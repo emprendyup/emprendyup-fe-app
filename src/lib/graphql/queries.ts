@@ -309,6 +309,7 @@ export const GET_USER = gql`
     user(id: $id) {
       id
       name
+      membershipLevel
       email
       role
       store {
@@ -325,6 +326,7 @@ export const UPDATE_USER = gql`
       id
       name
       email
+      membershipLevel
       role
       store {
         id
@@ -333,13 +335,18 @@ export const UPDATE_USER = gql`
     }
   }
 `;
-
-export const GET_STORES = gql`
-  query GetStores {
-    stores {
+export const GET_ALL_STORES_FOR_ADMIN = gql`
+  query GetAllStoresForAdmin {
+    getAllStoresForAdmin {
       id
-      name
       storeId
+      name
+      description
+      users {
+        id
+        email
+        role
+      }
     }
   }
 `;

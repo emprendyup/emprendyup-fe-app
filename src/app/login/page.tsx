@@ -87,7 +87,6 @@ function LoginForm() {
       // Conditional redirect based on role
 
       if (data.login.user.role === 'ADMIN') {
-        debugger;
         router.push('/dashboard/insights');
       } else if (data.login.user.storeId) {
         router.push('/dashboard/insights');

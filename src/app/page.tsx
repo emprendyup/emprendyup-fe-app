@@ -86,7 +86,6 @@ function LoginForm() {
       localStorage.setItem('user', JSON.stringify(data.login.user));
       // Conditional redirect
       if (data.login.user.role === 'ADMIN') {
-        debugger;
         router.push('/dashboard/insights');
       } else if (data.login.user.storeId) {
         router.push('/dashboard/insights');

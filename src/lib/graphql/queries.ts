@@ -308,3 +308,51 @@ export const ORDERS_BY_USER = gql`
     }
   }
 `;
+
+// User Queries and Mutations
+export const GET_USER = gql`
+  query GetUser($id: ID!) {
+    user(id: $id) {
+      id
+      name
+      membershipLevel
+      email
+      role
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const UPDATE_USER = gql`
+  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
+    updateUser(id: $id, input: $input) {
+      id
+      name
+      email
+      membershipLevel
+      role
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+export const GET_ALL_STORES_FOR_ADMIN = gql`
+  query GetAllStoresForAdmin {
+    getAllStoresForAdmin {
+      id
+      storeId
+      name
+      description
+      users {
+        id
+        email
+        role
+      }
+    }
+  }
+`;

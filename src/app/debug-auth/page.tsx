@@ -7,7 +7,6 @@ export default function DebugAuth() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get user data
     const userData = localStorage.getItem('user');
     const accessToken = localStorage.getItem('accessToken');
 
